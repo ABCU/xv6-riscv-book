@@ -10,10 +10,10 @@ is the code in an operating system that manages a particular device:
 it configures the device hardware,
 tells the device to perform operations,
 handles the resulting interrupts,
-and interacts with processes that may be waiting
-for I/O from the device.
+and interacts with processes using the device.
 Driver code can be tricky
-because a driver executes concurrently with the device that it manages.  In
+because a driver executes concurrently with the device,
+and often concurrently with processes using the device.  In
 addition, the driver must understand the device's hardware interface,
 which can be complex and poorly documented.
 
@@ -34,7 +34,7 @@ operation and raises an interrupt. The driver's interrupt handler,
 acting as the bottom half,
 figures out what operation has completed, wakes up a waiting
 process if appropriate, and tells the hardware to start work
-on any waiting next operation.
+on the next operation, if any.
 
 \section{Code: Console input}
 
@@ -56,7 +56,7 @@ display.
 
 The UART hardware appears to software as a set of \indextext{memory-mapped}
 control registers. That is, there are some physical addresses that 
-RISC-V hardware connects to the UART device, so that loads and stores
+are connected to the UART device, so that loads and stores
 interact with the device hardware rather than RAM.
 The memory-mapped addresses for the UART start at 0x10000000, or {\tt UART0}
 \lineref{kernel/memlayout.h:/UART0.0x/}.
@@ -64,14 +64,16 @@ There are a handful of UART control registers, each the width
 of a byte. Their offsets from {\tt UART0} are defined in
 \lineref{kernel/uart.c:/define.RHR/}. For example, the
 {\tt LSR} register contains bits that indicate whether input
-characters are waiting to be read by the software. These
+characters are waiting to be read by the driver. These
 characters (if any) are available for reading from the
 {\tt RHR} register. Each time one is read, the UART hardware
 deletes it from an internal FIFO of waiting characters, and
 clears the ``ready'' bit in {\tt LSR} when the FIFO is empty.
-The UART transmit hardware is largely independent of the receive
-hardware; if software writes a byte to the {\tt THR},
-the UART transmits that byte.
+To transmit, the driver writes a byte to the {\tt THR} register,
+which causes the UART to append the byte to a FIFO of bytes that the
+UART will send on the RS232 serial link.
+The UART transmit and receive hardware are largely independent
+of each other.
 
 Xv6's {\tt main} calls {\tt consoleinit}
 \lineref{kernel/console.c:/^consoleinit/} to initialize the UART
@@ -280,18 +282,19 @@ output using the \lstinline{read} and \lstinline{write} system calls.
 Applications may want to control aspects of a device that cannot be
 expressed through the standard file system calls (e.g.,
 enabling/disabling line buffering in the console driver).  Unix
-operating systems support the \lstinline{ioctl} system call for such
+operating systems provide an \lstinline{ioctl} system call for such
 cases.
 
-Some usages of computers require that the system must respond in a
-bounded time.  For example, in safety-critical systems missing a
-deadline can lead to disasters.  Xv6 is not suitable for hard
-real-time settings. Operating systems for hard real-time tend to be
-libraries that link with the application in a way that allows for an
-analysis to determine the worst-case response time.  Xv6 is also not
-suitable for soft real-time applications, when missing a deadline
-occasionally is acceptable, because xv6's scheduler is too simplistic and it has
-kernel code path where interrupts are disabled for a long time.
+Some uses of computers require ``real-time'' responses to external
+events: responses guaranteed to occur within a bounded time. For
+example, in safety-critical systems missing a deadline can lead to
+disasters. Xv6 is not suitable for real-time settings. Among other
+things, xv6's scheduler does not take into account real-time deadlines
+when it decides what process to run next, and xv6 has long kernel code
+paths with interrupts disabled, so that it may not respond to
+interrupts quickly. A real-time operating system must not only fix
+these problems, but also be structured in a way that allows analysis
+of worst-case response times.
 
 \section{Exercises}
 
