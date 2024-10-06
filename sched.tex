@@ -24,10 +24,8 @@ another in two situations. First, xv6's
 and
 \lstinline{wakeup}
 mechanism switches when a process makes a system
-call that blocks (has to wait for an event), typically in \lstinline{read},
-\lstinline{wait},
-or
-\lstinline{sleep}.
+call that blocks (has to wait for an event), for example in \lstinline{read} or
+\lstinline{wait}.
 Second, xv6 periodically forces a switch to cope with
 processes that compute for long periods without blocking.
 The former are voluntary switches;
@@ -43,7 +41,8 @@ Second, how to force
 switches in a way that is transparent to user processes?  Xv6 uses the
 standard technique in which a hardware timer's interrupts drive context switches.
 Third, all of the CPUs switch among the same set of processes, so a
-locking plan is necessary to avoid races. Fourth, a process's
+locking plan is necessary to avoid mistakes such as two CPUs deciding
+to run the same process at the same time. Fourth, a process's
 memory and other resources must be freed when the process exits,
 but it cannot do all of this itself
 because (for example) it can't free its own kernel stack while still using it.
@@ -70,30 +69,13 @@ Figure~\ref{fig:switch}
 outlines the steps involved in switching from one
 user process to another:
 a trap (system
-call or interrupt) from user space to the old process's kernel thread,
+call or interrupt) from the old process's user space to its kernel thread,
 a context switch to the current CPU's scheduler thread, a context
 switch to a new process's kernel thread, and a trap return
 to the user-level process.
-Xv6 has separate threads
-(saved registers and stacks)
-in which to execute the scheduler because
-it is not safe for the scheduler to execute on
-any process's kernel stack: some other CPU might
-wake the process up and run it, and it would be a disaster
-to use the same stack on two different CPUs.
-There is a separate scheduler thread for each CPU to cope
-with situations in which more than one CPU is running
-a process that wants to give up the CPU.
-%
-% I think it may never be safe. if the old process is a ZOMBIE, the
-% parent may mark it UNUSED and another core may allocate it in
-% fork(). if the old process is SLEEPING or RUNNABLE, another core may
-% wake it up and run it.
-%
-% what has changed is that, if we deleted wait(), it would 
-% be safe for an exit()ing process to set its state to UNUSED
-% directly (no ZOMBIE, no need for parent cleanup).
-%
+A CPU's scheduler thread is responsible for picking the next
+process for that CPU to run, perhaps scanning repeatedly
+(``idling'') if no process currently wants to run.
 In this section we'll examine the mechanics of switching
 between a kernel thread and a scheduler thread.
 
@@ -214,6 +196,8 @@ scheduler stack.
 \section{Code: Scheduling}
 %% 
 
+% why a separate thread
+
 The last section looked at the low-level details of
 \indexcode{swtch};
 now let's take 
@@ -225,6 +209,13 @@ The scheduler exists in the form of a special thread per CPU, each running the
 \lstinline{scheduler}
 function.
 This function is in charge of choosing which process to run next.
+Each CPU has its own scheduler thread because more than one may be
+looking for something to run at any given time. Process switching
+always goes through the scheduler thread, rather than direct from one
+process to another, to avoid some situations in which there would be
+no stack on which to execute the scheduler (e.g. if the old process
+has exited, or there is no other process that currently wants to run).
+
 A process
 that wants to give up the CPU must
 acquire its own process lock
@@ -1403,8 +1394,9 @@ The count also avoids the spurious wakeup
 and thundering herd problems.
 
 Terminating processes and cleaning them up introduces much complexity in xv6.
-In most operating systems it is even more complex, because, for example, the
-victim process may be deep inside the kernel sleeping, and unwinding its
+In most operating systems it is even more complex, because, for example,
+a killed
+process may be deep inside the kernel sleeping, and unwinding its
 stack requires care, since each function on the call stack
 may need to do some clean-up.  Some languages help out by providing
 an exception mechanism, but not C.
