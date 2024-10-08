@@ -140,9 +140,16 @@ and switch to the scheduler context previously saved in
 
 \lstinline{swtch}
 \lineref{kernel/swtch.S:/swtch/}
-saves only callee-saved registers;
-the C compiler generates code in the caller to save
-caller-saved registers on the stack.
+saves callee-saved registers but not caller-saved registers.
+The RISC-V calling convention requires that if a function needs the
+value in a caller-saved register, the compiler-generated instructions
+for that function must save the register to the stack before calling
+any other function, and restore from the stack when that other
+function returns. So \lstinline{swtch} can rely on the function that
+called it having already saved the caller-saved registers (either
+that, or the calling function didn't need the values in the
+registers).
+
 \lstinline{swtch} knows the offset of each
 register's field in 
 \lstinline{struct context}.
