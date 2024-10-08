@@ -262,8 +262,9 @@ across calls to
 \lstinline{swtch}:
 the caller of
 \indexcode{swtch}
-must already hold the lock, and control of the lock passes to the
-switched-to code.  This arrangement is unusual: it's more common for
+acquires the lock, but it's the switched-to thread
+that releases the lock.
+This arrangement is unusual: it's more common for
 the thread that acquires a lock to also release it.
 Xv6's context switching must break this convention because
 \indexcode{p->lock}
