@@ -838,7 +838,7 @@ The going-to-sleep process holds either
 the condition lock or its own
 \lstinline{p->lock} 
 or both from {\it before} it checks the condition
-until {\it after} it is marked \texttt{SLEEPING}.
+until {\it after} it has marked itself as \texttt{SLEEPING}.
 The process calling \texttt{wakeup} holds \textit{both}
 locks in \texttt{wakeup}'s loop.
 Thus the waker either makes the condition true before
@@ -865,7 +865,7 @@ there is no data to be read.
 From their point of view the wakeup was ``spurious,'' and
 they must sleep again.
 For this reason \lstinline{sleep} is always called inside a loop that
-checks the condition.
+re-checks the condition, as in \lstinline{P} above.
 
 No harm is done if two uses of sleep/wakeup accidentally
 choose the same channel: they will see spurious wakeups,
@@ -999,7 +999,7 @@ loop, copies data out of the pipe
 and increments 
 \lstinline{nread}
 by the number of bytes copied.
-That many bytes are now available for writing, so
+That much space in the buffer is now available for writing, so
 \lstinline{piperead}
 calls
 \lstinline{wakeup}
@@ -1117,7 +1117,7 @@ is released by {\tt scheduler},
 so
 \lstinline{wait}
 can't look at
-the exiting process until well after
+the exiting process until after
 \lstinline{exit}
 has set its state to
 \lstinline{ZOMBIE}
@@ -1150,7 +1150,8 @@ is set
 (it checks by calling
 \lstinline{killed}
 \lineref{kernel/proc.c:/^killed/}).
-If the victim is running in user space, it will soon enter
+If the victim is running in user space, it will 
+see that it has been killed the next time it enters
 the kernel by making a system call or because the timer (or
 some other device) interrupts.
 
@@ -1161,7 +1162,7 @@ If the victim process is in
 will cause the victim to return from
 \lstinline{sleep}.
 This is potentially dangerous because 
-the condition being waited for for may not be true.
+the condition being waited for may not be true.
 However, xv6 calls to
 \lstinline{sleep}
 are always wrapped in a
@@ -1216,7 +1217,7 @@ threads on other CPUs, so it's natural that they
 must be protected by a lock.
 
 However, most uses of \lstinline{p->lock} are protecting higher-level
-aspects of xv6's process data structures and algorithms. Here's
+invariants of xv6's process data structures and algorithms. Here's
 the full set of things that \lstinline{p->lock} does:
 
 % it's hard to know how to phrase these things in a uniform way.
@@ -1383,12 +1384,12 @@ operating system will schedule all these processes and they will race to check
 the sleep condition.  Processes that behave in this way are sometimes called a
 \indextext{thundering herd},
 and it is best avoided.
-Most condition variables have two primitives for
+Most condition variable designs have two primitives for
 \lstinline{wakeup}:
 \lstinline{signal},
-which wakes up one process, and
+which wakes up one of the processes waiting for the condition variable, and
 \lstinline{broadcast},
-which wakes up all waiting processes.
+which wakes up all of them.
 
 Semaphores are often used for synchronization.
 The count typically corresponds to something like
@@ -1401,9 +1402,8 @@ of wakeups that have occurred.
 The count also avoids the spurious wakeup
 and thundering herd problems.
 
-Terminating processes and cleaning them up introduces much complexity in xv6.
-In most operating systems it is even more complex, because, for example,
-a killed
+Forcibly killing processes poses some problems.
+For example, a killed
 process may be deep inside the kernel sleeping, and unwinding its
 stack requires care, since each function on the call stack
 may need to do some clean-up.  Some languages help out by providing
