@@ -690,7 +690,7 @@ the caller must pass the \indextext{condition lock} to
 \lstinline{sleep}
 so it can release the lock after
 the calling process is marked as asleep and waiting on the
-sleep channel.
+wait channel.
 The lock will force a concurrent
 \lstinline{V}
 to wait until \lstinline{P} has finished putting itself to sleep,
@@ -788,7 +788,7 @@ Now that
 holds just
 \lstinline{p->lock},
 it can put the process to sleep by recording
-the sleep channel,
+the wait channel,
 changing the process state to \texttt{SLEEPING},
 and calling
 \lstinline{sched}
@@ -872,7 +872,7 @@ choose the same channel: they will see spurious wakeups,
 but looping as described above will tolerate this problem.
 Much of the charm of sleep/wakeup is that it is both
 lightweight (no need to create special data
-structures to act as sleep channels) and provides a layer
+structures to act as wait channels) and provides a layer
 of indirection (callers need not know which specific process
 they are interacting with).
 %% 
@@ -1015,7 +1015,7 @@ but stopped when the buffer filled.
 It marks that process as
 \indexcode{RUNNABLE}.
 
-The pipe code uses separate sleep channels for reader and writer
+The pipe code uses separate wait channels for reader and writer
 (\lstinline{pi->nread}
 and
 \lstinline{pi->nwrite});
