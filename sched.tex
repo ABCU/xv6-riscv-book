@@ -24,7 +24,7 @@ another in two situations. First, xv6's
 and
 \lstinline{wakeup}
 mechanism switches when a process makes a system
-call that blocks (has to wait for an event), for example in \lstinline{read} or
+call that blocks (has to wait), for example in \lstinline{read} or
 \lstinline{wait}.
 Second, xv6 periodically forces a switch to cope with
 processes that compute for long periods without blocking.
@@ -474,8 +474,11 @@ for the disk hardware to finish the read.
 The xv6 kernel uses a mechanism called sleep and wakeup
 in these situations (and many others).
 Sleep allows a kernel thread to
-wait for a specific event; another thread can call wakeup 
-to indicate that threads waiting for a specified event should resume.
+wait for some condition to be true; another thread
+or an interrupt handler can cause the condition
+to be true (typically by modifying some variable(s))
+and then call wakeup
+to indicate that threads waiting for the condition should resume.
 Sleep and wakeup are often called 
 \indextext{sequence coordination}
 or 
@@ -546,10 +549,10 @@ and
 \indexcode{wakeup},
 that work as follows.
 \lstinline{sleep(chan)}
-waits for an event designated by the value of
-\indexcode{chan},
-called the 
-\indextext{wait channel}.
+waits on the
+\indextext{wait channel}
+indicated by the value of
+\indexcode{chan}.
 \lstinline{sleep}
 puts the calling process to sleep, releasing the CPU
 for other work.
