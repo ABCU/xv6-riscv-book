@@ -485,8 +485,90 @@ or
 \indextext{conditional synchronization}
 mechanisms.
 
-Sleep and wakeup provide a relatively low-level synchronization
-interface. To motivate the way they work in xv6,
+The two functions have this interface:
+
+\begin{lstlisting}
+void sleep(void *chan, struct spinlock *lk)
+void wakeup(void *chan)
+\end{lstlisting}
+
+\lstinline{sleep()} marks the calling process as \lstinline{SLEEPING}
+(not \lstinline{RUNNABLE}) and releases the CPU by context-switching 
+to the scheduler, so that other processes can run.
+The \lstinline{chan} argument is called the \indextext{wait channel}.
+\lstinline{wakeup(chan)} wakes up all processes (if any)
+that have called \lstinline{sleep(chan, ...)} with the same \lstinline{chan}
+value. \lstinline{sleep} and \lstinline{wakeup} treat \lstinline{chan}
+as a 64-bit number; the only thing they do with it is compare for
+equality. The usual pattern is for callers to pass the address of
+some convenient object as the \lstinline{chan} argument.
+
+Kernel code calls \lstinline{sleep} to wait for some
+\indextext{condition} to become true. For example, the kernel code
+that reads from a pipe calls \lstinline{sleep} if the pipe buffer is
+currently empty; the condition in this case is the pipe buffer
+becoming non-empty (due to another process writing to the pipe).
+\lstinline{sleep} and \lstinline{wakeup} do not know what the
+condition is: only the calling code knows. The usual pattern is for
+the caller to first check the condition, and call \lstinline{sleep}
+if it is not true; code that later makes the
+condition true calls \lstinline{wakeup}.
+
+Here's a sketch of how the xv6 kernel pipe code uses
+\lstinline{sleep} and \lstinline{wakeup}:
+
+\begin{lstlisting}
+piperead(pipe){
+  acquire(&pipe->lock);
+  while(there's no data in pipe->buffer){
+    sleep(&pipe, &pipe->lock);
+  }
+  remove the data from the pipe;
+  release(&pipe->lock);
+}
+pipewrite(pipe){
+  acquire(&pipe->lock);
+  append data to pipe->buffer;
+  wakeup(&pipe);
+  release(&pipe->lock);
+}
+\end{lstlisting}
+
+What is the \lstinline{lk} argument to \lstinline{sleep}?
+In all uses of \lstinline{sleep}/\lstinline{wakeup}
+the condition is shared data, used by both the
+thread that sleeps and the thread that calls \lstinline{wakeup}, so
+there always turns out to be a lock that protects the condition. That lock is
+called the \indextext{condition lock}. In the pipe code above, both
+functions use the pipe and its buffer while holding the pipe lock,
+which in this case is the condition lock. It's a rule that any code
+that calls \lstinline{sleep} or \lstinline{wakeup} must hold the
+condition lock, and that the lock must be passed to \lstinline{sleep}
+as the second argument.
+
+The reason that the condition lock must be held when \lstinline{sleep}
+is called, and that it must be passed to \lstinline{sleep}, is to
+prevent the possibility that another thread might call
+\lstinline{wakeup} between the check of the condition (e.g. whether
+there's data in the pipe) and the call to \lstinline{sleep}. A call to
+\lstinline{wakeup} at that point would find no sleeping process to
+wake up; the \lstinline{wakeup} would simply return.
+But then the call to \lstinline{sleep} might never wake up,
+since the \lstinline{wakeup} intended for it has already happened.
+This undesirable situation is called a \indextext{lost wake-up}.
+
+In the pipe example above, the lost wake-up being avoided is the
+possibility that another thread might call \lstinline{pipewrite}
+between \lstinline{piperead}'s check of the condition and its call to
+\lstinline{sleep}. The fact that \lstinline{piperead} holds the pipe
+lock during the time between when it checks the condition and calls
+\lstinline{sleep} prevents \lstinline{pipewrite} from executing, and
+thus prevents a lost wake-up.
+
+\section{An illustration of lost wake-ups}
+\label{sec:sleep}
+
+To motivate the way \lstinline{sleep} and \lstinline{wakeup} work in xv6,
 we'll use them to build a higher-level
 synchronization mechanism called a \indextext{semaphore}~\cite{dijkstra65} that
 coordinates producers and consumers
@@ -524,8 +606,8 @@ this implementation would be correct:
   }
 \end{lstlisting}
 
-The implementation above 
-is expensive.  If the producer acts
+The code above 
+would be expensive.  If the producer acts
 rarely, the consumer will spend most
 of its time spinning in the 
 \lstinline{while}
@@ -544,40 +626,25 @@ increments the count.
 Here's a step in that direction, though as we
 will see it is not enough.
 Let's imagine a pair of calls, 
-\indexcode{sleep}
+\indexcode{naive_sleep(chan)}
 and
-\indexcode{wakeup},
-that work as follows.
-\lstinline{sleep(chan)}
-waits on the
-\indextext{wait channel}
-indicated by the value of
-\indexcode{chan}.
-\lstinline{sleep}
-puts the calling process to sleep, releasing the CPU
-for other work.
-\lstinline{wakeup(chan)}
-wakes all processes that are in calls
-to \lstinline{sleep} with the same
-\lstinline{chan}
-(if any), causing their
-\lstinline{sleep}
-calls to return.
-If no processes are waiting on
-\lstinline{chan},
-\lstinline{wakeup}
-does nothing.
+\indexcode{naive_wakeup(chan)},
+that are similar to the real functions except
+they do not demand that a condition lock be held.
+But, like \lstinline{sleep},
+\lstinline{naive_sleep} yields the CPU so
+that it can do other work.
 We can change the semaphore implementation to use
-\lstinline{sleep}
+\lstinline{naive_sleep}
 and
-\lstinline{wakeup} (changes highlighted in yellow):
+\lstinline{naive_wakeup} (changes highlighted in yellow):
 \begin{lstlisting}[numbers=left,firstnumber=200]
   void
   V(struct semaphore *s)
   {
      acquire(&s->lock);
      s->count += 1;
-     (*@\hl{wakeup(s);}@*)
+     (*@\hl{naive\_wakeup(s);}@*)
      release(&s->lock);
   }
   
@@ -585,7 +652,7 @@ and
   P(struct semaphore *s)
   {
     while(s->count == 0)    (*@\label{line:test}@*)
-      (*@\hl{sleep(s);}@*)  (*@\label{line:sleep}@*)
+      (*@\hl{naive\_sleep(s);}@*)  (*@\label{line:sleep}@*)
     acquire(&s->lock);
     s->count -= 1;
     release(&s->lock);
@@ -601,12 +668,12 @@ and
 
 \lstinline{P}
 now gives up the CPU instead of spinning, which is nice.
-However, it turns out not to be straightforward to design
-\lstinline{sleep}
+However, it turns out that the
+\lstinline{naive_sleep}
 and 
-\lstinline{wakeup}
-with this interface without suffering
-from what is known as the \indextext{lost wake-up} problem.
+\lstinline{naive_wakeup}
+interface suffers
+from the lost wake-up problem.
 % (see 
 % Figure~\ref{fig:deadlock}).
 Suppose that
@@ -624,13 +691,13 @@ runs on another CPU:
 it changes
 \lstinline{s->count}
 to be nonzero and calls
-\lstinline{wakeup},
+\lstinline{naive_wakeup},
 which finds no processes sleeping and thus does nothing.
 Now
 \lstinline{P}
 continues executing at line~\ref{line:sleep}:
 it calls
-\lstinline{sleep}
+\lstinline{naive_sleep}
 and goes to sleep.
 This causes a problem:
 \lstinline{P}
@@ -654,15 +721,15 @@ running at just the wrong moment.
 An incorrect way to protect the invariant would be to 
 move the lock acquisition (highlighted in yellow below) in
 \lstinline{P}
-so that its check of the count and its call to \lstinline{sleep}
-are atomic:
+so that its check of the count and its call to \lstinline{naive_sleep}
+are both protected by the lock:
 \begin{lstlisting}[numbers=left,firstnumber=300]
   void
   V(struct semaphore *s)
   {
     acquire(&s->lock);
     s->count += 1;
-    wakeup(s);
+    naive_wakeup(s);
     release(&s->lock);
   }
   
@@ -671,7 +738,7 @@ are atomic:
   {
     (*@\hl{acquire(\&s->lock);}@*)
     while(s->count == 0)    (*@\label{line:test1}@*)
-      sleep(s);             (*@\label{line:sleep1}@*)
+      naive_sleep(s);             (*@\label{line:sleep1}@*)
     s->count -= 1;
     release(&s->lock);
   }
@@ -686,12 +753,8 @@ It does that, but it also deadlocks:
 holds the lock while it sleeps,
 so \lstinline{V} will block forever waiting for the lock.
 
-We'll fix the preceding scheme by changing
-\lstinline{sleep}'s
-interface:
-the caller must pass the \indextext{condition lock} to
-\lstinline{sleep}
-so it can release the lock after
+The real \lstinline{sleep} avoids lost wake-ups by requiring the
+condition lock as an argument, and releasing the lock after
 the calling process is marked as asleep and waiting on the
 wait channel.
 The lock will force a concurrent
@@ -703,7 +766,7 @@ will find the sleeping consumer and wake it up.
 Once the consumer is awake again
 \indexcode{sleep}
 reacquires the lock before returning.
-Our new correct sleep/wakeup scheme is usable as follows (change
+The correct sleep/wakeup scheme is usable as follows (change
 highlighted in yellow):
 \begin{lstlisting}[numbers=left,firstnumber=400]
   void
@@ -738,11 +801,11 @@ check of
 \lstinline{s->count}
 and its call to
 \lstinline{sleep}.
-However, 
+The next section describes how
 \lstinline{sleep}
-must release
+releases
 \lstinline{s->lock}
-and put the consuming process to sleep
+and puts the consuming process to sleep
 in a way that's atomic from the point of view of \lstinline{wakeup},
 in order to avoid lost wakeups.
 
@@ -881,9 +944,10 @@ they are interacting with).
 %% 
 \section{Code: Pipes}
 %% 
-A more complex example that uses \lstinline{sleep}
+xv6's pipes are an example of code that uses
+\lstinline{sleep}
 and \lstinline{wakeup} to synchronize producers and
-consumers is xv6's implementation of pipes.
+consumers.
 We saw the interface for pipes in Chapter~\ref{CH:UNIX}:
 bytes written to one end of a pipe are copied
 to an in-kernel buffer and then can be read from
@@ -1379,16 +1443,17 @@ All of these mechanisms share the same
 flavor: the sleep condition is protected by
 some kind of lock dropped atomically during sleep.
 
-The implementation of
+xv6's
 \lstinline{wakeup}
-wakes up all processes that are waiting on a particular channel, and it might be
-the case that many processes are waiting for that particular channel.   The
-operating system will schedule all these processes and they will race to check
-the sleep condition.  Processes that behave in this way are sometimes called a
-\indextext{thundering herd},
-and it is best avoided.
-Most condition variable designs have two primitives for
-\lstinline{wakeup}:
+wakes up all processes that are waiting on a particular wait channel.
+If there are more than one of them, they will all try to acquire
+the condition lock and re-check the condition; in many cases only
+one will be able to do anything useful (e.g., read all the
+data waiting in a pipe). The rest will find
+the condition is no longer true and go back to sleep;
+it was a waste of CPU time to wake them up.
+As a result,
+most condition variable designs provide two primitives:
 \lstinline{signal},
 which wakes up one of the processes waiting for the condition variable, and
 \lstinline{broadcast},
