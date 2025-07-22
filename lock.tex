@@ -510,7 +510,7 @@ per-process locks
 \lstinline{struct proc})
 due to the way that
 \lstinline{sleep}
-works (see Chapter~\ref{CH:SCHED}).
+works (see Chapter~\ref{CH:SLEEP}).
 For example,
 \lstinline{consoleintr}
 \lineref{kernel/console.c:/^consoleintr/}
@@ -824,7 +824,7 @@ Xv6 provides such locks in the form of
 \lineref{kernel/sleeplock.c:/^acquiresleep/}
 yields the CPU while waiting,
 using techniques that will be explained in
-Chapter~\ref{CH:SCHED}.
+Chapter~\ref{CH:SLEEP}.
 At a high level, a sleep-lock has a
 \lstinline{locked}
 field that is protected by a spinlock, and 

@@ -166,7 +166,7 @@ A process may create a new process using the
 system call.
 \lstinline{fork}
 gives the new process an exact copy of the calling
-process's memory: it copies the instructions, data, and
+process's memory: \lstinline{fork} copies the instructions, data, and
 stack of the calling process into the new process's memory.
 \lstinline{fork}
 returns in both the original and new processes.
@@ -228,8 +228,8 @@ returns, causing the parent to print
 \begin{lstlisting}[]
 parent: child 1234 is done
 \end{lstlisting}
-Although the child has the same memory contents as the parent initially, the
-parent and child are executing with separate memory and separate registers:
+Although the child starts with a copy of the parent's memory, the
+parent and child execute with separate memory and separate registers:
 changing a variable in one does not affect the other. For example, when the
 return value of
 \lstinline{wait}
