@@ -800,12 +800,14 @@ doesn't type any input).
 
 \begin{enumerate}
 
-\item Implement counting semaphores in xv6 without using
-\lstinline{sleep} and \lstinline{wakeup} (but it
-is OK to use spin locks).
+\item Implement counting semaphores in xv6.
 Choose a few of xv6's uses of sleep and wakeup and
 replace them with semaphores.
 Judge the result.
+
+\item Can you implement a variant of {\tt sleep()} that
+takes just one argument, the channel, and doesn't need
+a lock argument?
 
 \item Fix the race mentioned above between
 \lstinline{kill}
