@@ -198,12 +198,6 @@ You can see this sequence in
 \texttt{sleep}
 and
 \texttt{exit}.
-\lstinline{sched}
-double-checks some of those requirements
-\linerefs{kernel/proc.c:/if..holding/,/running/}
-and then checks an implication:
-since a lock is held, interrupts should be disabled.
-Finally,
 \indexcode{sched}
 calls
 \indexcode{swtch}
@@ -222,7 +216,8 @@ had returned
 \lstinline{scheduler}
 \lineref{kernel/proc.c:/^scheduler/} 
 runs a loop:
-find a process to run, run it until it yields, repeat.
+find a process to run, {\tt swtch()} to it, eventually it
+will {\tt swtch()} back to the scheduler, which continues its loop.
 The scheduler
 loops over the process table
 looking for a runnable process, one that has
@@ -238,15 +233,39 @@ and then calls
 \indexcode{swtch}
 to start running it
 \linerefs{kernel/proc.c:/Switch.to/,/swtch/}.
+Figure~\ref{fig:inout} illustrates this pattern.
 
-We just saw that xv6 holds
+\begin{figure}[t]
+\begin{verbatim}
+process #1              scheduler()           process #2
+----------              -----------           ----------
+acquire(&p->lock);
+p->state = RUNNABLE;
+swtch(...); // call
+                        swtch(...); // return
+                        release(&p->lock);
+
+                        find a RUNNABLE p
+
+                        acquire(&p->lock);
+                        p->state = RUNNING;
+                        swtch(...); // call
+                                              swtch(...); // return
+                                              release(&p->lock);
+\end{verbatim}
+\caption{{\tt swtch()} always has the scheduler thread as either source
+or destination, and the relevant {\tt p->lock} is always held.}
+\label{fig:inout}
+\end{figure}
+
+xv6 holds
 \indexcode{p->lock}
 across calls to
 \lstinline{swtch}:
 the caller of
 \indexcode{swtch}
-acquires the lock, but it's the switched-to thread
-that releases the lock.
+acquires the lock,
+but it's released in the target after {\tt swtch} returns.
 This arrangement is unusual: it's more common for
 the thread that acquires a lock to also release it.
 Xv6's context switching must break this convention because
@@ -289,21 +308,6 @@ is completely running (after the
 \lstinline{swtch},
 for example in
 \lstinline{yield}).
-
-A kernel thread giving up its CPU always calls
-\lstinline{sched},
-and {\tt sched}'s call to {\tt swtch()} always
-switches to the same location in \lstinline{scheduler}, which
-(almost) always switches to some kernel thread that previously called
-\lstinline{sched}. 
-Thus, if one were to print out the line numbers where xv6 
-calls {\tt swtch()},
-one would observe the following simple pattern:
-\lineref{kernel/proc.c:/swtch..c/},
-\lineref{kernel/proc.c:/swtch..p/},
-\lineref{kernel/proc.c:/swtch..c/},
-\lineref{kernel/proc.c:/swtch..p/},
-and so on.
 
 There is one case when the scheduler's call to
 \indexcode{swtch}
