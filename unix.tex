@@ -496,7 +496,7 @@ The system call
 replaces the calling process's memory but preserves its file table.
 This behavior allows the shell to
 implement \indextext{I/O redirection} by forking,
-re-opening chosen file descriptors in the child,
+closing and re-opening chosen file descriptors in the child,
 and then calling \lstinline{exec} to run the new program.
 Here is a simplified version of the code a shell runs for the
 command
