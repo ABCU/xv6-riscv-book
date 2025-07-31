@@ -559,7 +559,7 @@ continue running, perhaps creating more havoc.  To detect such errors
 immediately, xv6 maps the text without \lstinline{PTE_W}; if a program
 accidentally attempts to store to address 0, the hardware will refuse
 to execute the store and raises a page fault (see
-Section~\ref{sec:pagefaults}).  The kernel then kills the process and
+Section~\ref{CH:PGFAULTS}).  The kernel then kills the process and
 prints out an informative message so that the developer can track down
 the problem.
 
@@ -591,22 +591,6 @@ to a program running in user mode. A real-world operating system might
 instead automatically allocate more memory for the user stack when it
 overflows.
 
-When a process asks xv6 for more user memory, xv6 grows the process's
-heap. Xv6 first uses {\tt kalloc} to allocate physical pages.
-It then adds PTEs to the process's page table that point
-to the new physical pages.
-Xv6 sets the
-\lstinline{PTE_W},
-\lstinline{PTE_R},
-\lstinline{PTE_U},
-and
-\lstinline{PTE_V}
-flags in these PTEs.
-Most processes do not use the entire user address space;
-xv6 leaves
-\lstinline{PTE_V}
-clear in unused PTEs.
-
 We see here a few nice examples of use of page tables.  First,
 different processes' page tables translate user addresses to different
 pages of physical memory, so that each process has private user
@@ -624,31 +608,6 @@ all address spaces, but can be used only by the kernel.
 \label{fig:processlayout}
 \end{figure}
 
-\section{Code: sbrk}
-
-\lstinline{sbrk}
-is the system call for a process to shrink or grow its memory. The system
-call is implemented by the function
-\lstinline{growproc}
-\lineref{kernel/proc.c:/^growproc/}.
-\lstinline{growproc} calls \lstinline{uvmalloc} or
-\lstinline{uvmdealloc}, depending on whether \lstinline{n} is positive
-or negative.
-\lstinline{uvmalloc}
-\lineref{kernel/vm.c:/^uvmalloc/}
-allocates physical memory with {\tt kalloc}, zeros the allocated memory,
-and adds PTEs to the user page table with {\tt mappages}.
-\lstinline{uvmdealloc} calls
-{\tt uvmunmap}
-\lineref{kernel/vm.c:/^uvmunmap/},
-which uses {\tt walk} to find PTEs and
-{\tt kfree} to free the physical memory they refer to.
-
-Xv6 uses a process's page table not just to tell the hardware how to
-map user virtual addresses, but also as the only record of which
-physical memory pages are allocated to that process. That is the
-reason why freeing user memory (in {\tt uvmunmap}) requires
-examination of the user page table.
 
 %% 
 \section{Code: exec}
@@ -900,16 +859,11 @@ space efficiency.
 \item Parse RISC-V's device tree to find the amount of physical memory
 the computer has.
 
-\item Write a user program that grows its address space by one byte by calling
-\lstinline{sbrk(1)}.
-Run the  program and investigate the page table for the program before the call
-to
-\lstinline{sbrk}
-and after the call to
-\lstinline{sbrk}.
-How much space has the kernel allocated?  What does the
-PTE
-for the new memory contain?
+\item The functions {\tt copyin} and {\tt copyinstr} walk the user
+  page table in software.  Set up the kernel page table so that the
+  kernel has the user program mapped, and {\tt copyin} and {\tt
+    copyinstr} can use {\tt memcpy} to copy system call arguments into
+  kernel space, relying on the hardware to do the page table walk.
 
 \item Modify xv6 to use super pages for the kernel.
 

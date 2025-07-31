@@ -4,16 +4,17 @@
 
 The combination of page tables and page faults is a powerful tool for
 kernels. It allows a kernel to transparent modify a user process's
-page tables, which opens up a wide range of features.  It enables the
-kernel to implement system calls more efficiently: for example,
-copy-on-write fork allows the kernel to avoid copying the parents
-memory. It can provide more convenience for applications programmers:
-for example, lazy allocation allows an application to allocate memory
-lazily without having to predict upfront exactly how memory it will
-need.  xv6 doesn't make much use of this powerful combination; it has
-only one example: lazy allocation.  This chapter describes this
-example and provides examples of how production operating systems use
-page-fault exceptions for other features.
+page tables, which opens up a wide range of features without having to
+modify applications.  It enables the kernel to implement system calls
+more efficiently: for example, copy-on-write fork allows the kernel to
+avoid copying the parents memory. It can provide more convenience for
+applications programmers: for example, lazy allocation allows an
+application to allocate memory lazily without having to predict
+upfront exactly how memory it will need.  xv6 doesn't make much use of
+this powerful combination; it has only one example: lazy allocation.
+This chapter describes this example and provides examples of how
+production operating systems use page-fault exceptions for other
+features.
 
 Before proceeding, please read the functions {\tt sys\_sbrk()} in {\tt
   kernel/sysproc.c}, and {\tt vmfault} in {\tt kernel/vm.c}.
@@ -66,16 +67,17 @@ When a process loads or stores to unallocated memory, the CPU will
 raise \indextext{page-fault exception}, because the memory isn't
 mapped by the page table, and thus the CPU cannot execute the
 instruction.  \lstinline{usertrap} checks for this case
-(\lineref{kernel/trap.c:/page fault/}) and calls \lstinline{vmfault}
-(\lineref{kernel/vm.c:/^uvmfault/}) to handle the page fault.  It
-checks that the fault address is a valid address in the faulting
-process's memory and allocates physical memory with {\tt kalloc},
+(\lineref{kernel/trap.c:/page fault/})
+and calls \lstinline{vmfault}
+(\lineref{kernel/vm.c:/^uvmfault/})
+to handle the page fault.  \lstinline{vmfault}
+checks that the faulting address is a valid address, allocates physical memory with {\tt kalloc},
 zeros the allocated memory, and adds PTEs to the user page table with
 {\tt mappages}.  Xv6 sets the \lstinline{PTE_W}, \lstinline{PTE_R},
 \lstinline{PTE_U}, and \lstinline{PTE_V} flags in the PTEs for the
-allocated page. Then, \lstinline{usertrap} resumes the faulting
-process at the instruction that caused the fault. Because the 
-PTE now allows access, the re-executed load or store instruction
+allocated page. Then, \lstinline{usertrap} resumes the
+process at the instruction that caused the fault. Because the
+PTE is now valid, the re-executed load or store instruction
 will execute without a fault.
 
 If an application frees memory using {\tt sbrk}, \lstinline{sys_sbrk}
