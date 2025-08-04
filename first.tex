@@ -16,22 +16,18 @@
 \label{CH:FIRST}
 
 A key requirement for an operating system is to support several activities at once.  For
-example, using the system call interface described in
+example,
+one might use the {\tt fork} and {\tt exec} calls from
 Chapter~\ref{CH:UNIX}
-a process can start new processes with 
-\lstinline{fork}.
+to start both a compiler and a text editor as processes.
 The operating system must 
 \indextext{time-share} 
-the resources of the computer among these processes.
-For example, even if there are more processes
-than there are hardware CPUs, the operating
-system must ensure that all of the processes
-get a chance to execute.  The operating system must also arrange for
+resources such as CPUs and memory among these processes.
+The operating system must also arrange for
 \indextext{isolation} 
 between the processes.
-That is, if one process has a bug and malfunctions,
-it shouldn't affect processes that
-don't depend on the buggy process.
+If one process has a bug and malfunctions,
+it shouldn't affect unrelated processes.
 Complete isolation, however, is too strong, since it should be possible for
 processes to intentionally interact; pipelines are an example.
 Thus
@@ -43,8 +39,7 @@ organized to achieve these three requirements.  It turns out there are
 many ways to do so, but this text focuses on mainstream designs
 centered around a \indextext{monolithic kernel}, which is used by many
 Unix operating systems.  This chapter also provides an overview of an
-xv6 process, which is the unit of isolation in xv6, and the
-creation of the first process when xv6 starts.
+xv6 process, the unit of isolation in xv6.
 
 Xv6 runs on a \indextext{multi-core}\footnote{
 By ``multi-core'' this text means multiple CPUs that share memory but execute
@@ -110,7 +105,7 @@ and
 system calls,
 instead of reading and writing the disk directly. 
 This provides the application with the convenience of pathnames, and it allows
-the operating system (as the implementer of the interface) to manage the disk. 
+the operating system (which provides the interface) to manage the disk. 
 Even if isolation is not a concern,
 programs that interact intentionally (or just wish to keep
 out of each other's way) are likely to find a file system a more convenient
@@ -136,8 +131,8 @@ Many forms of interaction among Unix processes occur via file descriptors.
 Not only do file descriptors abstract away many details (e.g.,
 where data in a pipe or file is stored), they are also defined in a
 way that simplifies interaction.
-For example, if one application in a pipeline fails, the kernel
-generates an end-of-file signal for the next process in the pipeline.
+For example, if one application in a pipeline exits or fails, the kernel
+automatically generates an end-of-file signal for the next process in the pipeline.
 
 The system-call interface in
 Figure~\ref{fig:api}
@@ -151,32 +146,33 @@ one.
 %% 
 
 Strong isolation requires a hard boundary between applications and the operating
-system.  If the application makes a mistake, we don't want the operating system
-to fail or other applications to fail. Instead, the operating system should be
-able to clean up the failed application and continue running other applications.
+system.
+Applications shouldn't be allowed to disturb the operation of
+the operating system or other programs, even if the application
+has a bug or is malicious.
 To achieve strong isolation, the operating system must arrange that applications cannot modify (or even
 read) the operating system's data structures and instructions and that
 applications cannot access other processes' memory.
 
 CPUs provide hardware support for strong isolation.   For
-example, RISC-V has three modes in which
-the CPU can execute instructions:
+example, RISC-V has three privilege levels which constrain
+what code can do:
 \indextext{machine mode},
 \indextext{supervisor mode}, and
 \indextext{user mode}.
 Instructions executing in machine mode have full privilege; a
 CPU starts in machine mode.  Machine mode is mostly intended for
-setting up the computer during boot.  Xv6 executes a few lines in machine mode and
+setting up the computer during boot.  Xv6 executes briefly in machine mode and
 then changes to supervisor mode.
 
 In supervisor mode the CPU is allowed to execute 
 \indextext{privileged instructions}:
 for example, enabling and disabling interrupts,  reading and writing
-the register that holds the address of a page table, etc.
+the register that holds the address of the page table, etc.
 If an application in user mode attempts to execute
-a privileged instruction, then the CPU doesn't execute the instruction, but switches
-to supervisor mode so that supervisor-mode code can terminate the application,
-because it did something it shouldn't be doing. 
+a privileged instruction, then the CPU doesn't execute the instruction, but
+``traps''
+to special code in supervisor mode that can terminate the application.
 Figure~\ref{fig:os}
 in Chapter~\ref{CH:UNIX} illustrates this organization.  An application can
 execute only user-mode instructions (e.g., adding numbers, etc.) and is said to
@@ -189,16 +185,14 @@ The software running in kernel space (or in supervisor mode) is called
 the
 \indextext{kernel}.
 
-An application that wants to invoke a kernel function (e.g., the
-\lstinline{read}
-system call in xv6) must 
-transition to the kernel; an application \emph{cannot} invoke a kernel
-function directly.  CPUs provide a special instruction that switches the
-CPU from user mode to supervisor mode and enters the kernel at an entry point
-specified by the kernel.  (RISC-V
-provides the 
-\indexcode{ecall}
-instruction for this purpose.)  Once the CPU has switched to supervisor mode,
+Applications interact with the kernel via system calls
+calls such as {\tt read}.
+Applications are not allowed to directly call kernel functions
+or access the kernel's memory.
+RISC-V provides the \indexcode{ecall} instruction
+for system calls; it switches the CPU from user to supervisor mode
+and jumps to a kernel-specified entry point.
+Once the CPU has switched to supervisor mode,
 the kernel can then validate the arguments of the system call (e.g.,
 check if the address passed to the system call is part of the application's memory), decide whether
 the application is allowed to perform the requested operation (e.g.,
@@ -220,27 +214,31 @@ run in supervisor mode.
 This organization is called a
 \indextext{monolithic kernel}.
 
-In this organization the entire operating system consists of a single
-program running with full hardware
-privilege. This organization is convenient because the OS designer doesn't have
-to decide which parts of the operating system don't need full hardware
-privilege.  Furthermore, it is easier for different parts of the operating system to
-cooperate.  For example, an operating system might have a buffer cache that can
-be shared both by the file system and the virtual memory system. 
+In a monolithic organization the entire operating system consists of a single
+program running in supervisor mode.
+One reason this organization is convenient is that the OS designer
+doesn't have to divide code into parts that do and do not
+require supervisor privileges.
+Furthermore, it is easy for different parts of the operating system to
+cooperate, since they are parts of a single program.
+For example, a monolithic kernel might share a disk block cache 
+with the file system and the virtual memory system. 
 
-A downside of the monolithic organization is that the interactions among
-different parts of the operating system are often complex (as we will see in the
-rest of this text), and therefore it is easy for an operating system developer
-to make a mistake.  In a monolithic kernel, a mistake is fatal, because an error
-in supervisor mode will often cause the kernel to fail.  If the kernel fails,
-the computer stops working, and thus all applications fail too.  The computer
-must reboot to start again.
+A downside is that monolithic kernels tend to grow large
+and complex, so that no one developer understands all of 
+the interactions between different parts of the code;
+this is a recipe for bugs. A bug in the kernel is particularly
+troublesome because it may cause the entire computer to crash,
+or cause many applications to malfunction,
+or make the entire computer vulnerable to security attacks.
 
-To reduce the risk of mistakes in the kernel, OS designers can minimize the
-amount of operating system code that runs in supervisor mode, and execute the
-bulk of the operating system in user mode.
-This kernel organization is called a
-\indextext{microkernel}.
+A \indextext{microkernel} aims to reduce the incidence of bugs in the
+kernel. The idea is to put an absolute minimum of functionality in the
+kernel itself, so that little code executes in supervisor mode, and so
+that the kernel is easy to understand and analyze for correctness. The
+bulk of the operating system runs as user-level server processes. For
+example, the file system code would execute as a server process, in
+user mode rather than supervisor mode.
 
 \begin{figure}[t]
 \center
@@ -251,7 +249,7 @@ This kernel organization is called a
 
 Figure~\ref{fig:mkernel}
 illustrates this microkernel design.  In the figure, the file system runs as a
-user-level process.  OS services running as processes are called servers.
+user-level server process.
 To allow applications to interact with the
 file server, the kernel provides an inter-process communication
 mechanism to send messages from one
@@ -278,7 +276,7 @@ variant of L4, seL4, is small enough that it has been verified for
 memory safety and other security properties~\cite{sel4}.
 
 There is much debate among developers of operating systems about which
-organization is better, and there is no conclusive evidence one way or
+organization is better, but there is no conclusive evidence one way or
 the other.  Furthermore, it depends much on what ``better'' means:
 faster performance, smaller code size, reliability of the kernel,
 reliability of the complete operating system (including user-level
@@ -310,45 +308,49 @@ microkernels, but conceptually xv6 is monolithic.
 
 \begin{figure}[t]
 \center
-\begin{tabular}{l|l}
-{\bf File} & {\bf Description} \\
+\begin{tabular}{l|l|l}
+& {\bf File} & {\bf Description} \\
 \midrule
-bio.c & Disk block cache for the file system. \\
-console.c & Connect to the user keyboard and screen. \\
-entry.S & Very first boot instructions. \\
-exec.c & exec() system call. \\
-file.c & File descriptor support. \\
-fs.c & File system. \\
-kalloc.c & Physical page allocator. \\
-kernelvec.S & Handle traps from kernel. \\
-log.c & File system logging and crash recovery. \\
-main.c & Control initialization of other modules during boot. \\
-pipe.c & Pipes. \\
-plic.c & RISC-V interrupt controller. \\
-printf.c & Formatted output to the console. \\
-proc.c & Processes and scheduling. \\
-sleeplock.c & Locks that yield the CPU. \\
-spinlock.c & Locks that don't yield the CPU. \\
-start.c & Early machine-mode boot code. \\
-string.c & C string and byte-array library. \\
-swtch.S & Thread switching. \\
-syscall.c & Dispatch system calls to handling function. \\
-sysfile.c & File-related system calls. \\
-sysproc.c & Process-related system calls. \\
-trampoline.S & Assembly code to switch between user and kernel. \\
-trap.c & C code to handle and return from traps and interrupts. \\
-uart.c & Serial-port console device driver. \\
-virtio\_disk.c & Disk device driver. \\
-vm.c & Manage page tables and address spaces. \\
+Boot & entry.S & Very first boot instructions. \\
+ & main.c & Control initialization of other modules. \\
+ & start.c & Early machine-mode boot code. \\
+Processes & exec.c & exec() system call. \\
+ & proc.c & Processes and scheduling. \\
+ & swtch.S & Thread switching. \\
+ & sysproc.c & Process-related system calls. \\
+Traps & kernelvec.S & Handle traps from kernel code. \\
+ & trampoline.S & Handle traps from user code. \\
+ & trap.c & C code to handle and return from traps and interrupts. \\
+ & syscall.c & Dispatch system calls to handling function. \\
+Memory & vm.c & Manage page tables and address spaces. \\
+ & kalloc.c & Physical page allocator. \\
+Devices & console.c & Connect to the user keyboard and screen. \\
+ & plic.c & RISC-V interrupt controller. \\
+ & printf.c & Formatted output to the console. \\
+ & uart.c & Serial-port console device driver. \\
+ & virtio\_disk.c & Disk device driver. \\
+FS & bio.c & Disk block cache for the file system. \\
+ & file.c & File descriptor support. \\
+ & fs.c & File system. \\
+ & log.c & File system logging and crash recovery. \\
+ & sysfile.c & File-related system calls. \\
+ & pipe.c & Pipes. \\
+Misc & sleeplock.c & Locks that yield the CPU. \\
+ & spinlock.c & Locks that don't yield the CPU. \\
+ & string.c & C string and byte-array library. \\
 \end{tabular}
 \caption{Xv6 kernel source files.}
 \label{fig:source}
 \end{figure}
 
-The xv6 kernel source is in the {\tt kernel/} sub-directory. The
-source is divided into files, following a rough notion of modularity;
-Figure~\ref{fig:source} lists the files.  The inter-module interfaces
-are defined in \lstinline{defs.h} \fileref{kernel/defs.h}.
+The xv6 kernel source is in the {\tt kernel/} sub-directory.
+Figure~\ref{fig:source} lists the files, divided into the
+major areas of kernel responsibility: starting the
+system (booting), creating
+and controlling processes, handling traps (interrupts
+and system calls), allocating memory and configuring
+virtual addresses, controlling devices, and managing the
+file-system.
 
 %% 
 \section{Process overview}
@@ -428,6 +430,13 @@ to refer to elements of the
 structure; for example,
 \indexcode{p->pagetable} is a pointer to the process's page table.
 
+At this point, please read {\tt kernel/proc.h}, which defines {\tt
+  struct proc}. The xv6 code is more important for you to understand
+than this book; you should prioritize the code, and consult this book
+as needed to clarify the code. The purpose of some of the code may not
+be apparent at first, but further reading and searching the code will
+help. Feel free to explore and modify the code.
+
 Each process has a thread of control (or 
 \indextext{thread}
 for short) that holds the state needed to execute the process.
@@ -453,14 +462,15 @@ and its kernel stack. The kernel stack is separate (and protected from
 user code) so that the kernel
 can execute even if a process has wrecked its user stack.
 
-A process can make a system call by executing the RISC-V \indexcode{ecall}
-instruction. This instruction raises the hardware privilege level and
+A process's user code
+can make a system call by executing the RISC-V \indexcode{ecall}
+instruction. This instruction switches to supervisor mode and
 changes the program counter to a kernel-defined entry point.  The code
 at the entry point switches to the process's kernel stack and executes the kernel
 instructions that implement the system call.  When the system call
-completes, the kernel switches back to the user stack and returns to
-user space by calling the \indexcode{sret} instruction, which lowers
-the hardware privilege level and resumes executing user instructions
+completes, the kernel returns to
+user space by executin the \indexcode{sret} instruction, which switches
+to user mode and resumes executing user instructions
 just after the system call instruction.  A process's thread can
 ``block'' in the kernel to wait for I/O, and resume where it left off
 when the I/O has finished.
@@ -491,17 +501,13 @@ process may have more than one thread to take advantage of multiple CPUs.
 To make xv6 more concrete, we'll outline how the kernel starts and
 runs the first process. The subsequent chapters will describe the
 mechanisms that show up in this overview in more detail.
+Please read {\tt kernel/entry.S}, {\tt kernel/start.c},
+{\tt kernel/main.c}, and {\tt user/initcode.S}.
 
 When the RISC-V computer powers on, it initializes
 itself and runs a boot loader which is stored in read-only
-memory.  The boot loader loads the xv6 kernel into memory.  Then, in
-machine mode, the CPU executes xv6 starting at
-\indexcode{_entry}
-\lineref{kernel/entry.S:/^.entry:/}.
-The RISC-V starts with paging hardware disabled:
-virtual addresses map directly to physical addresses.
-
-The loader loads the xv6 kernel into memory at physical address
+memory.  The boot loader copies the xv6 kernel into memory
+at physical address
 \texttt{0x80000000}.
 The reason it places the kernel at
 \texttt{0x80000000}
@@ -511,10 +517,15 @@ is because the address range
 \texttt{0x0:0x80000000}
 contains I/O devices.
 
+Then the boot loader jumps to xv6 starting at
+\indexcode{_entry}
+\lineref{kernel/entry.S:/^.entry:/}.
+The RISC-V starts with paging hardware disabled:
+virtual addresses map directly to physical addresses.
 The instructions at
 \lstinline{_entry}
 set up a stack so that xv6 can run C code.
-Xv6 declares space for an initial stack,
+Xv6 declares space for this stack,
 \lstinline{stack0},
 in the file
 \lstinline{start.c}
@@ -535,19 +546,20 @@ calls into C code at
 
 The function
 \lstinline{start}
-performs some configuration that is only allowed in
-machine mode, and then switches to supervisor mode.
-To enter supervisor mode, RISC-V
-provides the instruction
-\lstinline{mret}.
-This instruction is most often used to return from
-a previous call from supervisor mode to machine mode.
-\lstinline{start} isn't returning from such a call, but
-sets things up as if it were:
-it sets the previous privilege mode to
+performs some setup that the CPU only allows in machine mode,
+most crucially programming the clock chip to generate
+timer interrupts.
+Then {\tt start} uses the RISC-V {\tt mret}
+instruction to switch to supervisor mode and
+jump to 
+\lstinline{main}
+\lineref{kernel/main.c:/^main/}.
+{\tt mret} requires
+a bit of setup:
+{\tt start} sets the previous privilege mode to
 supervisor in the register
 \lstinline{mstatus},
-it sets the return address to
+sets the destination address to
 \lstinline{main}
 by writing
 \lstinline{main}'s
@@ -561,21 +573,6 @@ into the page-table register
 \lstinline{satp},
 and delegates all interrupts and exceptions
 to supervisor mode.
-
-Before jumping into supervisor mode,
-\lstinline{start}
-performs one more task: it programs the clock
-chip to generate timer interrupts.
-With this housekeeping out of the way,
-\lstinline{start}
-``returns'' to supervisor
-mode by calling
-\lstinline{mret}.
-This causes the program counter to change
-to
-\lstinline{main}
-\lineref{kernel/main.c:/^main/},
-the address previously stored in \lstinline{mepc}.
 
 After
 \lstinline{main}
@@ -644,9 +641,8 @@ Kernel code is expected to be bug-free, and certainly to contain
 nothing malicious. This assumption affects how we analyze kernel code.
 For example, there are many internal kernel functions (e.g., the spin
 locks) that would cause serious problems if kernel code used them
-incorrectly. When examining any specific piece of kernel code, we'll
-want to convince ourselves that it behaves correctly. We assume,
-however, that kernel code in general is correctly written, and follows
+incorrectly. We assume,
+however, that kernel code in general is correct, and follows
 all the rules about use of the kernel's own functions and data
 structures. At the hardware level, the RISC-V CPU, RAM, disk, etc. are
 assumed to operate as advertised in the documentation, with no
@@ -656,18 +652,19 @@ Of course in real life things are not so straightforward. It's
 difficult to prevent clever user code from making a system unusable
 (or causing it to panic) by consuming kernel-protected resources --
 disk space, CPU time, process table slots, etc. It's usually
-impossible to write bug-free kernel code or design bug-free hardware; if the
+impossible to write 100\% bug-free kernel code or design bug-free hardware; if the
 writers of malicious user code are aware of kernel or hardware bugs,
 they will exploit them. Even in mature, widely-used kernels, such as
-Linux, people discover new vulnerabilities
-continuously~\cite{mitre:cves}. It's worthwhile to design safeguards into the
+Linux, people often discover previously-unknown
+vulnerabilities~\cite{mitre:cves}.
+It's worthwhile to design safeguards into the
 kernel against the possibility that it has bugs: assertions, type
 checking, stack guard pages, etc. Finally, the distinction between
 user and kernel code is sometimes blurred: some privileged user-level
 processes may provide essential services and effectively be part of
 the operating system, and in some operating systems privileged user
 code can insert new code into the kernel (as with Linux's loadable
-kernel modules).
+kernel modules and eBPF).
 
 
 %% 
