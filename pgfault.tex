@@ -59,17 +59,17 @@ is negative) the process's memory size by n bytes, and then returns
 the start of the newly allocated region (i.e., the old size).  The
 system call is implemented by the function \lstinline{sys_sbrk}
 \lineref{kernel/sysproc.c:/^sys_sbrk/}.  To grow the memory of a
-process, {\tt sys\_sbrk} just increment the process's size
-(\lstinline{myproc()->sz)) by {\tt n} and return the old size; it does
+process, \lstinline{sys_sbrk} just increment the process's size
+(\lstinline{myproc()->sz}) by \lstinline{n} and return the old size; it does
   not allocate memory.
 
 When a process loads or stores to unallocated memory, the CPU will
 raise \indextext{page-fault exception}, because the memory isn't
 mapped by the page table, and thus the CPU cannot execute the
 instruction.  \lstinline{usertrap} checks for this case
-(\lineref{kernel/trap.c:/page fault/})
+\lineref{kernel/trap.c:/page fault/}
 and calls \lstinline{vmfault}
-(\lineref{kernel/vm.c:/^uvmfault/})
+\lineref{kernel/vm.c:/^vmfault/}
 to handle the page fault.  \lstinline{vmfault}
 checks that the faulting address is a valid address, allocates physical memory with {\tt kalloc},
 zeros the allocated memory, and adds PTEs to the user page table with
