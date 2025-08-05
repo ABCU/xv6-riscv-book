@@ -2,6 +2,24 @@
 \label{CH:PGFAULTS}
 %% 
 
+The RISC-V CPU raises a page-fault exception
+when a virtual address is used that has no mapping
+in the page table, or has a mapping whose \lstinline{PTE_V}
+flag is clear, or a mapping whose permission bits
+(\lstinline{PTE_R},
+\lstinline{PTE_W},
+\lstinline{PTE_X},
+\lstinline{PTE_U})
+forbid the operation being attempted.
+RISC-V distinguishes three
+kinds of page fault: load page faults (caused by load instructions),
+store page faults (caused by store instructions),
+and instruction
+page faults (caused by fetches of instructions to be executed).  The
+\lstinline{scause} register indicates the type of the
+page fault and the \indexcode{stval} register contains the address
+that couldn't be translated.
+
 The combination of page tables and page faults is a powerful tool.
 Page tables give the kernel a level of indirection between virtual and
 physical addresses, so that the kernel can control the structure and
@@ -104,55 +122,31 @@ process. That is the reason why freeing user memory (in {\tt
 
 \section{Real world: Copy-On-Write (COW) fork}
 
-Many kernels use page faults to implement \indextext{copy-on-write
-  (COW) fork}.  To explain copy-on-write fork, consider xv6's
-\lstinline{fork}, described in Chapter~\ref{CH:MEM}.  \lstinline{fork}
-causes the child's initial memory content to be the same as the
-parent's at the time of the fork.  Xv6 implements fork with
-\lstinline{uvmcopy} \lineref{kernel/vm.c:/^uvmcopy/}, which allocates
-physical memory for the child and copies the parent's memory into it.
-It would be more efficient if the child and parent could share the
-parent's physical memory.  A straightforward implementation of this
-would not work, however, since it would cause the parent and child to
-disrupt each other's execution with their writes to the shared stack
-and heap.
+Many kernels (though not xv6) use page faults to implement
+\indextext{copy-on-write (COW) fork}. {\tt fork} promises that the
+child sees memory whose initial content is the same as the parent's
+memory at the time of the fork. One way to implement this is to copy
+the entire memory of the parent to newly allocated physical memory for
+the child; this is what xv6 does. Copying can be slow, and it
+would be more efficient if the child could share the parent's physical
+memory. A straightforward implementation of this would not work,
+however, since it would cause the parent and child to disrupt each
+other's execution with their writes to the shared stack and heap.
 
-Parent and child can safely share physical memory by
-appropriate use of page-table permissions and page faults.
-The CPU raises an page-fault exception
-when a virtual address is used that has no mapping
-in the page table, or has a mapping whose \lstinline{PTE_V}
-flag is clear, or a mapping whose permission bits
-(\lstinline{PTE_R},
-\lstinline{PTE_W},
-\lstinline{PTE_X},
-\lstinline{PTE_U})
-forbid the operation being attempted.
-RISC-V distinguishes three
-kinds of page fault: load page faults (caused by load instructions),
-store page faults (caused by store instructions),
-and instruction
-page faults (caused by fetches of instructions to be executed).  The
-\lstinline{scause} register indicates the type of the
-page fault and the \indexcode{stval} register contains the address
-that couldn't be translated, which are passed to {\tt vmfault} in xv6.
-
-The basic plan in COW fork is for the parent and child to initially
-share all physical pages, but for each to map them read-only (with the
-\lstinline{PTE_W} flag clear).
-Parent and child can read from the shared physical memory.
-If either writes a given page,
-the RISC-V CPU raises a page-fault exception.
-If xv6 were more sophisticated, {\tt vmfault}
-can respond by allocating a
-new page of physical memory and copying into it
-the physical page that the faulted address maps to.
-The kernel changes the relevant PTE in the faulting process's page
-table to point to the copy and to allow writes as well as reads,
-and then resumes the faulting
-process at the instruction that caused the fault. Because the 
-PTE now allows writes, the re-executed instruction
-will execute without a fault.
+Copy-on-write fork causes parent and child to safely share physical
+memory by appropriate use of page-table permissions and page faults.
+The basic plan is for the parent and child to initially share all
+physical pages, but for each to map them read-only (with the
+\lstinline{PTE_W} flag clear). Parent and child can then read from the
+shared physical memory. If either writes a shared page, the RISC-V CPU
+raises a page-fault exception. A kernel supporting COW would respond
+by allocating a new page of physical memory and copying the shared
+page into that new page. Then kernel would change the relevant PTE in
+the faulting process's page table to point to the copy and to allow
+writes as well as reads, and then resume the faulting process at the
+instruction that caused the fault. Because the PTE now allows writes,
+the re-executed store instruction will execute without a fault, and
+will modify a private copy of the page rather than the shared page.
 
 Copy-on-write requires book-keeping
 to help decide when physical pages can be freed, since each page can
@@ -238,7 +232,7 @@ evicted before it can be used.
 
 Other features that combine paging and page-fault exceptions include
 automatically extending stacks and \indextext{memory-mapped files},
-which are files that a program mapped into its address space using
+which are files that a program maps into its address space using
 the \texttt{mmap} system call so that the program can read and write
 them using load and store instructions.
 
