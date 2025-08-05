@@ -74,7 +74,7 @@ raise \indextext{page-fault exception}.
 \lstinline{usertrap} checks for this case
 (\lineref{kernel/trap.c:/page fault/})
 and calls \lstinline{vmfault}
-(\lineref{kernel/vm.c:/^uvmfault/})
+\lineref{kernel/vm.c:/^vmfault/}
 to handle the page fault.  \lstinline{vmfault}
 checks that the faulting address is within the
 region previously granted by {\tt sbrk},
