@@ -31,9 +31,10 @@ makes sense for interrupts since isolation demands that only the
 kernel be allowed to use devices,
 and because the kernel is able to
 share devices among multiple processes.
-It also makes sense for exceptions
-since xv6 responds to all exceptions from user space by killing the
-offending program.
+It also makes sense for exceptions since the kernel may be able to
+handle the exception from user space (for an example see
+Chapter~\ref{CH:PGFAULTS}) or respond by killing the offending
+program.
 
 Xv6 trap handling proceeds in four stages: hardware actions taken by
 the RISC-V CPU, some assembly instructions that prepare the way for
