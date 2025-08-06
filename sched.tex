@@ -321,11 +321,11 @@ so that its first \lstinline{swtch} ``returns''
 to the start of that function.
 \lstinline{forkret}
 exists to release the 
-\indexcode{p->lock};
-otherwise, since the new process needs to
-return to user space as if returning from \lstinline{fork},
-it could instead start at
-\lstinline{usertrapret}.
+\indexcode{p->lock}
+and set up some control registers and trapframe
+fields that are required in order to return to user space.
+At the end, {\tt forkret} simulates the normal return
+path from a system call back to user space.
 
 
 %% 
@@ -364,7 +364,8 @@ hartid is a little involved, since user code is free
 to modify \lstinline{tp}. \lstinline{start} sets the \lstinline{tp}
 register early in the CPU's boot sequence, while still in machine mode
 \lineref{kernel/start.c:/w_tp/}.
-\lstinline{usertrapret} saves \lstinline{tp} in the trampoline
+While preparing to return to user space,
+\lstinline{prepare_return} saves \lstinline{tp} in the trampoline
 page, in case user code modifies it.
 Finally, \lstinline{uservec} restores that saved \lstinline{tp}
 when entering the kernel from user space

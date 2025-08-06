@@ -50,7 +50,7 @@ the first handler instructions are usually written in assembler
 (rather than C) and are sometimes called a \indextext{vector}.
 
 Before proceeding, please read {\tt kernel/trampoline.S},
-and {\tt usertrap()} and {\tt usertrapret()} in {\tt kernel/trap.c}.
+and {\tt usertrap()} and {\tt prepare\_return()} in {\tt kernel/trap.c}.
 
 \section{RISC-V trap machinery}
 
@@ -148,7 +148,7 @@ the CPU switch to a kernel-specified instruction address, namely {\tt
    uservec           userret
       |                 ^
       v                 |
-   usertrap() ----> usertrapret()
+   usertrap() ----------|
       |
       v
   syscall(), or
@@ -173,12 +173,13 @@ The high-level path of a trap from user space is
 \lineref{kernel/trampoline.S:/^uservec/},
 then {\tt usertrap}
 \lineref{kernel/trap.c:/^usertrap/};
-and when returning,
-{\tt usertrapret}
-\lineref{kernel/trap.c:/^usertrapret/}
-and then
+and when the kernel is ready to return,
+{\tt usertrap}
+returns to
 {\tt userret}
-\lineref{kernel/trampoline.S:/^userret/}.
+\lineref{kernel/trampoline.S:/^userret/}
+which executes {\tt sret}
+to user space.
 
 % talk about why RISC-V doesn't switch page tables
 
@@ -271,20 +272,19 @@ but user code needs to resume executing at the subsequent instruction.
 {\tt usertrap} checks if the process has been
 killed or should yield the CPU (if this trap is a timer interrupt).
 
-The first step in returning to user space is the call to {\tt usertrapret}
-\lineref{kernel/trap.c:/^usertrapret/}.
+The first step in returning to user space is the call to {\tt prepare\_return}
+{\lineref{kernel/trap.c:/^prepare/}}.
 This function sets up the RISC-V control registers to prepare for a
 future trap from user space: setting {\tt stvec}
 to {\tt uservec} and preparing the trapframe fields that
 {\tt uservec} relies on.
-{\tt usertrapret} sets {\tt sepc} to the previously
+{\tt prepare\_return} sets {\tt sepc} to the previously
 saved user program counter.
-At the end, {\tt usertrapret}
-calls {\tt userret} on the trampoline page.
+Finally, {\tt usertrap}
+returns back to {\tt userret} in the trampoline page
+\lineref{kernel/trampoline.S:/^userret/},
+passing back a pointer to the user page table in {\tt a0}.
 
-{\tt usertrapret}'s call to {\tt userret} passes 
-a pointer to the process's user page table in {\tt a0}
-\lineref{kernel/trampoline.S:/^userret/}.
 {\tt userret} switches {\tt satp} to the process's user page table.
 Recall that the user page table maps both the trampoline page
 and {\tt TRAPFRAME}, but nothing else from the kernel.
