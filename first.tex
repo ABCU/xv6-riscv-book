@@ -502,7 +502,7 @@ To make xv6 more concrete, we'll outline how the kernel starts and
 runs the first process. The subsequent chapters will describe the
 mechanisms that show up in this overview in more detail.
 Please read {\tt kernel/entry.S}, {\tt kernel/start.c},
-{\tt kernel/main.c}, and {\tt user/initcode.S}.
+{\tt kernel/main.c}, and {\tt user/init.c}.
 
 When the RISC-V computer powers on, it initializes
 itself and runs a boot loader which is stored in read-only
@@ -581,27 +581,15 @@ initializes several devices and subsystems,
 it creates the first process by calling 
 \lstinline{userinit}
 \lineref{kernel/proc.c:/^userinit/}.
-The first process executes a small program written in RISC-V assembly,
-which makes the first system call in xv6.
-\indexcode{initcode.S} 
-\lineref{user/initcode.S:3} loads the number for the \lstinline{exec}
-system call, \lstinline{SYS_EXEC}
-\lineref{kernel/syscall.h:/exec/},
-into
-register {\tt a7},
-and then calls \lstinline{ecall} to re-enter the kernel.
+All newly created processes start executing in the kernel in
+\lstinline{forkret}
+\lineref{kernel/proc.c:/^forkret/}.
+As a special case for the first process, {\tt forkret}
+calls {\tt exec} to load the user program {\tt /init}.
 
-The kernel uses the number in register {\tt a7} in \lstinline{syscall}
-\lineref{kernel/syscall.c:/^syscall/} to call the desired system call.
-The system call table \lineref{kernel/syscall.c:/syscalls/} maps
-\lstinline{SYS_EXEC} to the function \lstinline{sys_exec}, which the kernel
-invokes.  As we saw in Chapter~\ref{CH:UNIX}, \indexcode{exec}
-replaces the memory and registers of the current process with a new
-program (in this case, \indexcode{/init}).
-
-Once the kernel has completed 
+After calling
 \lstinline{exec},
-it returns to user space in
+{\tt forkret} returns to user space in
 the \lstinline{/init} process.
 \lstinline{init}
 \lineref{user/init.c:/^main/}
