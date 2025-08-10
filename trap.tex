@@ -335,7 +335,7 @@ into the kernel and causes
 
 At this point, please read {\tt kernel/syscall.c},
 {\tt sys\_write()} in {\tt kernel/sysfile.c},
-and {\tt copyinstr()} in {\tt kernel/vm.c}.
+and {\tt copyout()}, {\tt copyin()}, and {\tt copyinstr()} in {\tt kernel/vm.c}.
 
 \indexcode{syscall}
 \lineref{kernel/syscall.c:/^syscall/} 

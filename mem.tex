@@ -13,12 +13,13 @@ Page tables are the most popular mechanism through which the operating
 system provides each process with its own private address space and
 memory.  Page tables determine what memory addresses mean, and what
 parts of physical memory can be accessed. They allow xv6 to isolate
-different process's address spaces and to multiplex them onto a single
-physical memory. Page tables are a popular design because they provide
-a level of indirection that allow operating systems to perform many
-tricks. Xv6 performs a few tricks: mapping the same memory
-(a trampoline page) in several address spaces, and guarding kernel and
-user stacks with an unmapped page. The rest of this chapter explains
+different processes' address spaces and to multiplex them onto a single
+physical memory. Page tables provide
+a level of indirection that allows operating systems to perform many useful
+tricks. Xv6 performs a few: mapping the same memory
+(a trampoline page) in several address spaces, guarding kernel and
+user stacks with an unmapped page, and allocating user heap memory lazily.
+The rest of this chapter explains
 the page tables that the RISC-V hardware provides and how xv6 uses
 them.
 
@@ -35,12 +36,12 @@ by mapping each virtual address to a physical address.
 \begin{figure}[t]
 \center
 \includegraphics[scale=0.5]{fig/riscv_address.pdf}
-\caption{RISC-V virtual and physical addresses, with a simplified
-logical page table.}
+\caption{An abstract view of a flat page table mapping virtual
+to physical addresses.}
 \label{fig:riscv_address}
 \end{figure}
 
-Xv6 runs on Sv39 RISC-V, which means that only the bottom 39
+Xv6 uses RISC-V's Sv39 mode, which means that only the bottom 39
 bits of a 64-bit virtual address are used; the top 25 bits
 are not used.
 In this Sv39 configuration, a
@@ -53,7 +54,8 @@ physical address whose top 44 bits come from the PPN in the PTE
 and whose bottom 12 bits are copied from the original virtual address.
 Figure~\ref{fig:riscv_address} shows this
 process with a logical view of the page table as a simple array of PTEs
-(see Figure~\ref{fig:riscv_pagetable} for a fuller story).
+(the RISC-V page table is actually a tree;
+see Figure~\ref{fig:riscv_pagetable} for a fuller story).
 A page table
 gives the operating system control over virtual-to-physical address
 translations at the granularity of aligned chunks of 4096 ($2^{12}$)
@@ -66,21 +68,21 @@ bytes.  Such a chunk is called a \indextext{page}.
 \label{fig:riscv_pagetable}
 \end{figure}
 
-In Sv39 RISC-V, the top 25 bits of a virtual address are not used for
-translation. The physical address also has room for growth: there is
+RISC-V's design leaves room for expansion of both virtual and physical
+addresses. If more virtual address space is needed, RISC-V supports an
+Sv48 mode, with 48-bit virtual addresses~\cite{riscv:priv}.
+Physical addresses also have room for growth: there is
 room in the PTE format for the physical page number to grow by another
-10 bits.  The designers of RISC-V chose these numbers based on
-technology predictions.  $2^{39}$ bytes is 512 GB, which should be
-enough address space for applications running on RISC-V
-computers. $2^{56}$ is enough physical memory space for the near
-future to fit many I/O devices and RAM chips. If
-more is needed, the RISC-V designers have defined Sv48 with 48-bit
-virtual addresses~\cite{riscv:priv}.
+10 bits.  The designers of RISC-V chose address sizes based on
+technology predictions.  $2^{48}$ bytes is 262,144 GB,
+a much larger user virtual address space than any application is likely
+to use today.
+$2^{56}$ bytes of physical address space is 65,536 terabytes, much
+more RAM than any computer can currently be equipped with.
 
 As 
 Figure~\ref{fig:riscv_pagetable} shows,
-a RISC-V CPU translates a virtual address into a physical in
-three steps.  A page table is stored
+a RISC-V CPU page table is stored
 in physical memory as a three-level tree.
 The root of the tree is a
 4096-byte page-table page that contains 512 PTEs, which contain the physical
@@ -95,7 +97,7 @@ of a virtual address index into the top-level.)
 
 If any of the three PTEs required to translate an address
 is not present, the paging hardware raises a \indextext{page-fault exception}, leaving it up
-to the kernel to handle the exception (see Chapters~\ref{CH:TRAP} and~\ref{CH:PGFAULTS}).
+to the kernel to handle the page fault (see Chapters~\ref{CH:TRAP} and~\ref{CH:PGFAULTS}).
 
 The three-level structure of Figure~\ref{fig:riscv_pagetable} allows a
 memory-efficient way of recording PTEs, compared to the single-level
@@ -123,7 +125,7 @@ Each PTE contains flag bits that tell the paging hardware
 how the associated virtual address is allowed to be used.
 \indexcode{PTE_V}
 indicates whether the PTE is present: if it is
-not set, a reference to the page causes an exception (i.e., is not allowed).
+not set, a reference to the page causes a page fault (i.e., is not allowed).
 \indexcode{PTE_R}
 controls whether instructions are allowed to 
 read to the page.
@@ -138,7 +140,7 @@ controls whether instructions in user mode are allowed
 to access the page;
 if \indexcode{PTE_U} is not set, the PTE can be used only in supervisor mode.
 Figure~\ref{fig:riscv_pagetable}
-shows how it all works.
+shows where the flag bits sit in a PTE.
 The flags and all other page hardware-related structures are defined in
 \fileref{kernel/riscv.h}
 
@@ -146,7 +148,7 @@ To tell a CPU to use a page table, the kernel must
 write the physical address of the root page-table page into the 
 \texttt{satp}\index{satp@\lstinline{satp}} register.
 A CPU will translate all addresses generated by subsequent instructions
-using the page table pointed to by its own \texttt{satp}.
+using the page table pointed to by its \texttt{satp}.
 Each CPU has its own \texttt{satp} so that different CPUs can run
 different processes, each with a private address space described by
 its own page table.
@@ -174,7 +176,7 @@ such as isolation.
 \begin{figure}[h]
 \centering
  \includegraphics[scale=0.65]{fig/xv6_layout.pdf}
-\caption{On the left, xv6's kernel address space.
+\caption{On the left, xv6's kernel virtual address space.
 {\sf \small{RWX}}
 refer to PTE read, write, and execute permissions.
 On the right, the RISC-V physical address space that
@@ -185,9 +187,8 @@ xv6 expects to see.}
 %% 
 \section{Kernel address space}
 %% 
-Xv6 maintains one page table per process, describing each
-process's user address space, plus a single page table
-that describes the kernel's address space.
+When it starts, xv6 creates a single page table
+describing the kernel's address space.
 The kernel configures the layout of its address space to
 give itself
 access to physical memory and
@@ -215,14 +216,15 @@ with the device hardware rather than with RAM.
 Chapter~\ref{CH:TRAP} explains
 how xv6 interacts with devices.
 
-The kernel gets at RAM and memory-mapped device registers
-using ``direct mapping;'' that is, mapping the resources at
-virtual addresses that are equal to the physical address.
-For
-example, the kernel itself is located at \lstinline{KERNBASE=0x80000000} in both
+The kernel maps all physical RAM and device
+registers at virtual addresses equal to the
+physical addresses.
+This is called ``direct mapping,'' and allows the kernel
+to read or write physical address $x$ simply by loading
+or storing to virtual address $x$.
+The kernel code itself is located at \lstinline{KERNBASE=0x80000000} in both
 the virtual address space and in physical memory.
-Direct mapping simplifies kernel code that reads or writes
-physical memory. For example, when \lstinline{fork}
+When \lstinline{fork}
 allocates user memory for the child process,
 the allocator returns the physical address of that memory;
 \lstinline{fork} uses that address directly as a virtual
@@ -238,21 +240,22 @@ addresses that aren't direct-mapped:
   Chapter~\ref{CH:TRAP} discusses the role of the trampoline
   page, but we see here an interesting use case of page tables; a
   physical page (holding the trampoline code) is mapped twice in the
-  virtual address space of the kernel: once at top of the virtual
+  virtual address space of the kernel: once at the top of the virtual
   address space and once with a direct mapping.
 
 \item The kernel stack pages.  Each process has its own kernel stack,
-  which is mapped high so that below it xv6 can leave an unmapped \indextext{guard
+  which is mapped at a high kernel virtual address
+  so that below it xv6 can leave an unmapped \indextext{guard
     page}.  The guard page's PTE is invalid (i.e.,
   \lstinline{PTE_V} is not set), so that if the kernel overflows
-  a kernel stack, it will likely cause an exception and the kernel will panic.
+  a kernel stack, it will likely cause a page fault and the kernel will panic.
   Without a guard page an overflowing stack would overwrite other kernel memory,
   resulting in incorrect operation. A panic crash is preferable.
 
 \end{itemize}
 
-While the kernel uses its stacks via the high-memory mappings, they
-are also accessible to the kernel through a direct-mapped address. An
+While the kernel uses its stacks via the high-memory mappings, each
+is also accessible to the kernel through a direct-mapped address. An
 alternate design might have just the direct mapping, and use the
 stacks at the direct-mapped address. In that arrangement, however,
 providing guard pages would involve unmapping virtual addresses that
@@ -263,19 +266,28 @@ The kernel maps the pages for the trampoline and the kernel text with
 the permissions
 \lstinline{PTE_R}
 and
-\lstinline{PTE_X}.
-The kernel reads and executes instructions from these pages.
-The kernel maps the other pages with the permissions
+\lstinline{PTE_X}, but not \lstinline{PTE_W}.
+The kernel maps other pages with the permissions
 \lstinline{PTE_R}
 and
 \lstinline{PTE_W},
-so that it can read and write the memory in those pages.
+but not \lstinline{PTE_X}.
 The mappings for the guard pages are invalid.
+The purpose of these restricted permissions is to help
+catch kernel bugs that access pages in unexpected
+ways, for example if kernel code accidentally tried
+to write over kernel instructions.
 
+The kernel creates a single kernel page table, used by all CPUs when
+they execute in the kernel. xv6 does not modify the kernel page
+table after initially creating it.
 
 %% 
 \section{Code: creating an address space}
 %% 
+
+Please read {\tt kernel/vm.c} through the end of {\tt mappages()}
+before proceeding.
 
 Most of the xv6 code for manipulating address spaces and
 page tables resides in {\tt vm.c}
@@ -356,7 +368,7 @@ mimics the RISC-V paging hardware as it
 looks up the PTE for a virtual address (see
 Figure~\ref{fig:riscv_pagetable}).
 \lstinline{walk}
-descends the page table one level at a time,
+descends the page table tree one level at a time,
 using each level's 9 bits of virtual address to
 index into the relevant page directory page.
 At each level it finds either the PTE of the
@@ -382,18 +394,22 @@ and then uses that address as a
 virtual address to fetch the PTE at the next level down
 \lineref{kernel/vm.c:/t..pte.=..paget/}.
 
+On each CPU,
 \indexcode{main}
 calls
 \indexcode{kvminithart}
 \lineref{kernel/vm.c:/^kvminithart/}
-to install the kernel page table.
-It writes the physical address of the root page-table page
-into the register
-\texttt{satp}.
-After this the CPU will translate addresses using the kernel
-page table.  Since the kernel uses a direct mapping, the now
-virtual address of the next instruction will map to the right physical
-memory address.
+to install the kernel page table,
+placing
+the physical address of the root page-table page
+into the CPU's 
+\texttt{satp}
+register.
+After this the CPU translates addresses using the kernel
+page table. The kernel continues to execute correctly
+because the kernel page table is direct-mapped, so that
+addresses refer to the same locations in RAM before
+and after this change.
 
 Each RISC-V CPU caches page table entries in a
 \indextext{Translation Look-aside Buffer (TLB)}, and when xv6 changes
@@ -416,11 +432,6 @@ stores. This wait ensures that preceding updates to the page table have
 completed, and ensures that preceding loads and stores use the old
 page table, not the new one.
 
-To avoid flushing the complete TLB, RISC-V CPUs may support address
-space identifiers (ASIDs)~\cite{riscv:priv}.  The kernel can then
-flush just the TLB entries for a particular address space. Xv6
-does not use this feature.
-
 \section{Physical memory allocation}
 
 The kernel must allocate and free physical memory at run-time for
@@ -436,6 +447,9 @@ at a time. It keeps track of which pages are free by threading a
 linked list through the pages themselves. Allocation consists of
 removing a page from the linked list; freeing consists of adding the
 freed page to the list.
+
+Please read {\tt kernel/kalloc.c}.
+
 %% 
 \section{Code: Physical memory allocator}
 %% 
@@ -445,15 +459,14 @@ The allocator's data structure is a
 \textit{free list}
 of physical memory pages that are available
 for allocation.
-Each free page's list element is a
+Each free page's ``next'' pointer resides in a
 \indexcode{struct run}
 \lineref{kernel/kalloc.c:/^struct.run/}.
-Where does the allocator get the memory
-to hold that data structure?
-It store each free page's
+The allocator stores each free page's
 \lstinline{run}
 structure in the free page itself,
-since there's nothing else stored there.
+since there's nothing else stored there
+while the page is free.
 The free list is
 protected by a spin lock
 \linerefs{kernel/kalloc.c:/^struct.{/,/}/}.
@@ -475,7 +488,7 @@ to initialize the allocator
 \lineref{kernel/kalloc.c:/^kinit/}.
 \lstinline{kinit}
 initializes the free list to hold
-every page between the end of the kernel and {\tt PHYSTOP}.
+every page of physical RAM between the end of the kernel and {\tt PHYSTOP}.
 Xv6 ought to determine how much physical
 memory is available by parsing configuration information 
 provided by the hardware.
@@ -506,7 +519,7 @@ write memory (e.g., manipulating the
 \lstinline{run}
 structure stored in each page);
 this dual use of addresses is the main reason that the
-allocator code is full of C type casts.
+allocator code is full of C type-casts.
 \index{type cast}
 
 The function
@@ -538,10 +551,12 @@ removes and returns the first element in the free list.
 Each process has its own page table, and when xv6 switches between
 processes, it also changes page tables.
 Figure~\ref{fig:processlayout} shows a process's address space in more
-detail than Figure~\ref{fig:as}.  A process's user memory starts at
-virtual address zero and can grow up to \texttt{MAXVA}
-\lineref{kernel/riscv.h:/MAXVA/}, allowing a process to address in
-principle 256 Gigabytes of memory.
+detail than Figure~\ref{fig:as}.  A process's user address space
+starts at zero and in principle ends at
+\texttt{MAXVA}
+({\tt 0x4000000000})
+\lineref{kernel/riscv.h:/MAXVA/}, though in practice
+only a small fraction of this is mapped to physical memory.
 
 A process's address space consists of pages that contain the text of
 the program (which xv6 maps with the permissions \lstinline{PTE_R},
@@ -612,6 +627,10 @@ all address spaces, but can be used only by the kernel.
 %% 
 \section{Code: exec}
 %% 
+
+Please read {\tt kernel/exec.c} and {\tt kernel/vm.c}
+starting at {\tt uvmcreate()}.
+
 \lstinline{exec} is a system call that replaces a process's
 user address space with data read from a file, called a binary
 or executable file.
@@ -626,7 +645,7 @@ are formatted in the widely-used \indextext{ELF format}, defined in
 \indexcode{struct elfhdr} \lineref{kernel/elf.h:/^struct.elfhdr/},
 followed by a sequence of program section headers,
 \lstinline{struct proghdr} \lineref{kernel/elf.h:/^struct.proghdr/}.  Each
-\lstinline{progvhdr} describes a section of the application that must
+\lstinline{proghdr} describes a section of the application that must
 be loaded into memory; xv6 programs have two program section
 headers: one for instructions and one for data.
 
@@ -835,6 +854,12 @@ uses only 8 kilobytes of memory, giving it a whole 4-megabyte super-page
 of physical memory is wasteful.
 Larger pages make sense on machines with lots of RAM,
 and may reduce overhead for page-table manipulation.
+
+To avoid having to flush the complete TLB when
+changing page tables, RISC-V CPUs may support address
+space identifiers (ASIDs)~\cite{riscv:priv}.  The kernel can then
+flush just the TLB entries for a particular address space. Xv6
+does not use this feature.
 
 The xv6 kernel's lack of a {\tt malloc}-like allocator that can
 provide memory for small objects prevents the kernel from using
