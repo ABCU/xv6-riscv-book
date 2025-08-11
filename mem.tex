@@ -574,7 +574,7 @@ continue running, perhaps creating more havoc.  To detect such errors
 immediately, xv6 maps the text without \lstinline{PTE_W}; if a program
 accidentally attempts to store to address 0, the hardware will refuse
 to execute the store and raises a page fault (see
-Section~\ref{CH:PGFAULTS}).  The kernel then kills the process and
+Chapter~\ref{CH:PGFAULTS}).  The kernel then kills the process and
 prints out an informative message so that the developer can track down
 the problem.
 
