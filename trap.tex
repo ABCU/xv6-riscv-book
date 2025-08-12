@@ -457,12 +457,9 @@ to handle them.
 If the trap isn't a device interrupt, it must be an exception,
 such as kernel code trying to use an invalid pointer.
 This could only be caused by a bug in the kernel code.
-The kernel does not have a way to recover from its own bugs,
+The kernel does not have a way to recover in this situation,
 so it calls {\tt panic()}, which prints an error message
-and then halts. More generally, 
-the kernel calls {\tt panic()}
-when it encounters a situation disastrous
-enough that it cannot proceed.
+and then halts.
 
 If {\tt kerneltrap} was called due to a timer interrupt, and a
 process's kernel thread is running (as opposed to a scheduler thread),
