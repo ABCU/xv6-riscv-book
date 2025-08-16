@@ -499,9 +499,9 @@ buf's b->lock & Serializes operations on each block buffer \\
 \section{Deadlock and lock ordering}
 %% 
 
-Suppose the code running on CPUs C1 and C2 both have a point at which
-each needs to hold both lock A and lock B, and they acquire them in
-different orders:
+Suppose the functions running on CPUs C1 and C2 both have a point at
+which each needs to hold both lock A and lock B, and they acquire them
+in different orders:
 
 \begin{verbatim}
   C1             C2
@@ -513,18 +513,18 @@ different orders:
   release(&A)    release(&B)
 \end{verbatim}
 
-With a bit of bad luck, T1 and T2 might both execute their first
+With a bit of bad luck, C1 and C2 might both execute their first
 acquire at exactly the same moment; both can succeed, since they are
-asking for different locks. But then both T1 and T2 will have to wait
+asking for different locks. But then both C1 and C2 will have to wait
 in their second calls to {\tt acquire()}, since both locks are already
-held by the other thread. Because both threads are waiting for each
+held by the other CPU. Because both CPUs are waiting for each
 other, neither will ever release a lock, and both will wait forever.
 This situation is called \indextext{deadlock}.
 
-The key problem in the T1/T2 example is that the two threads acquired
+The key problem in the C1/C2 example is that the two CPUs acquired
 the locks in different orders. If they had both tried to acquire A
 first, one would have acquired A and then B and then released them both,
-and then the other thread could have proceeded. More generally,
+and then the other CPU could have proceeded. More generally,
 locking code must follow this rule to avoid deadlock: all code paths
 that hold multiple locks must acquire locks in the same order. The
 need for this global lock acquisition order means that locks are
@@ -582,17 +582,17 @@ scheme, since more locks often means more opportunity for deadlock.
 The need to avoid deadlock is often a major factor in kernel
 implementation.
 
-A question that sometimes arises is what should happen if a thread
-tries to acquire a lock that the same thread already holds. One line
-of reasoning is that this should be allowed: no other thread can hold
-the lock, so there's no need to worry about threads interfering with
+A question that sometimes arises is what should happen if a CPU
+tries to acquire a lock that the same CPU already holds. One line
+of reasoning is that this should be allowed: no other CPU can hold
+the lock, so there's no need to worry about CPUs interfering with
 each others' use of the protected data. This is called a {\it
   re-entrant} or {\it recursive} locking scheme. On the other hand, if
 the lock is already held, that means some operation may have
 temporarily violated and not yet restored some invariants; to allow a
 new operation to commence while the invariants don't hold seems like
 an invitation to bugs. Xv6 takes this latter view, and forbids a
-thread that currently holds a lock from re-acquiring it. Detecting
+CPU that currently holds a lock from re-acquiring it. Detecting
 this situation is the purpose of the call to {\tt holding} in {\tt
   acquire}.
 
