@@ -582,19 +582,19 @@ scheme, since more locks often means more opportunity for deadlock.
 The need to avoid deadlock is often a major factor in kernel
 implementation.
 
-A question that sometimes arises is what should happen if a CPU
-tries to acquire a lock that the same CPU already holds. One line
-of reasoning is that this should be allowed: no other CPU can hold
-the lock, so there's no need to worry about CPUs interfering with
-each others' use of the protected data. This is called a {\it
-  re-entrant} or {\it recursive} locking scheme. On the other hand, if
-the lock is already held, that means some operation may have
-temporarily violated and not yet restored some invariants; to allow a
-new operation to commence while the invariants don't hold seems like
-an invitation to bugs. Xv6 takes this latter view, and forbids a
-CPU that currently holds a lock from re-acquiring it. Detecting
-this situation is the purpose of the call to {\tt holding} in {\tt
-  acquire}.
+A question that sometimes arises is what should happen if a CPU tries
+to acquire a lock that the same CPU already holds. One line of
+reasoning is that this should be allowed: no other CPU can hold the
+lock, so there's no need to worry about CPUs interfering with each
+others' use of the protected data. Locking systems that allow a CPU to
+re-aquire a lock it alread holds are called a {\it re-entrant} or {\it
+  recursive}. On the other hand, if a lock is already held, even on
+the same CPU, that means an operation may have temporarily violated
+and not yet restored some invariants; to allow a new operation to
+commence while the invariants don't hold seems like an invitation to
+bugs. Xv6 takes this latter view, and forbids a CPU that currently
+holds a lock from re-acquiring it. Detecting this situation is the
+purpose of the call to {\tt holding} in {\tt acquire}.
 
 \section{Locks and interrupts}
 \label{s:lockinter}
