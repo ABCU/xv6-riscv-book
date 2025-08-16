@@ -7,7 +7,7 @@ One source of interleaving is multiprocessor hardware:
 computers with
 multiple CPUs executing independently, such as xv6's RISC-V.
 These multiple CPUs share physical RAM,
-and xv6 exploits the sharing to maintain
+and xv6 exploits the sharing to maintain kernel
 data structures that all CPUs read and write.
 This sharing raises the possibility of
 one CPU reading a data structure while another
@@ -86,9 +86,9 @@ CPUs.  {\tt wait} frees the child's memory.
 Thus
 on each CPU, the kernel will call {\tt kfree}
 to free the children's memory pages.  The kernel allocator maintains a linked
-list: \lstinline{kalloc()} \lineref{kernel/kalloc.c:/^kalloc/} pops a
-page of memory from a list of free pages, and \lstinline{kfree()}
-\lineref{kernel/kalloc.c:/^kfree/} pushes a page onto the free list.
+list of free pages: \lstinline{kalloc()} \lineref{kernel/kalloc.c:/^kalloc/} pops a
+page of memory from the list, and \lstinline{kfree()}
+\lineref{kernel/kalloc.c:/^kfree/} pushes a page onto the list.
 For best performance, we might hope that the {\tt kfree}s of the two parent processes
 would execute in parallel without either having to wait for the other,
 but this would not be correct given xv6's {\tt kfree} implementation.
@@ -139,7 +139,7 @@ in an incorrect outcome as illustrated by Figure~\ref{fig:race}.
 There would then be two
 list elements with
 \lstinline{next}
-set to the former value of
+set to the same former value of
 \lstinline{list}.
 When the two assignments to
 \lstinline{list}
@@ -198,7 +198,7 @@ and
 \lstinline{release}
 is often called a
 \indextext{critical section}.
-The lock is typically said to be protecting
+The lock is said to be protecting
 \lstinline{list}.
 
 When we say that a lock protects data, we really mean
@@ -281,6 +281,9 @@ invocations.
 %% 
 \section{Code: Locks}
 %% 
+
+Please read {\tt kernel/spinlock.h} and {\tt kernel/spinlock.c}.
+
 Xv6 has two types of locks: spinlocks and sleep-locks.
 We'll start with spinlocks.
 Xv6 represents a spinlock as a
@@ -317,34 +320,39 @@ make lines \ref{line:testlocked} and \ref{line:assign} execute as an
 (i.e., indivisible) step.
 
 Because locks are widely used,
-multi-core processors usually provide instructions that
-implement an atomic version of
-lines~\ref{line:testlocked} and \ref{line:assign}.
+multi-core processors usually provide an instruction that
+can be used to make
+lines~\ref{line:testlocked} and \ref{line:assign}
+atomic.
 On the RISC-V this instruction is
 \lstinline{amoswap r, a}.
 \lstinline{amoswap}
 reads the value at the memory address {\tt a},
 writes the contents of register {\tt r} to that address,
 and puts the value it read into {\tt r}.
-That is, it swaps the contents of the register and the memory address.
+That is, it swaps the contents of the register and the addressed
+memory location.
 It performs this sequence atomically, using special
 hardware to prevent any
 other CPU from using the memory address between the read and the write.
 
+The portable C library call 
+\lstinline{__sync_lock_test_and_set(addr, value)}
+boils down to the
+\lstinline{amoswap}
+instruction;
+the function returns the old (swapped) contents of {\tt *addr}.
+Here's a good way to write the loop in {\tt acquire}:
+
+\begin{lstlisting}[numbers=left,firstnumber=21]
+  while(__sync_lock_test_and_set(&lk->locked, 1) != 0)
+    ;
+\end{lstlisting}
+
 Xv6's 
 \indexcode{acquire}
 \lineref{kernel/spinlock.c:/^acquire/}
-uses the portable C library call 
-\lstinline{__sync_lock_test_and_set},
-which boils down to the
-\lstinline{amoswap}
-instruction;
-the return value is the old (swapped) contents of
-\lstinline{lk->locked}.
-The
-\lstinline{acquire}
-function wraps the swap in a loop, retrying (spinning) until it has
-acquired the lock.
+uses the above loop.
 Each iteration swaps one into
 \lstinline{lk->locked} 
 and checks the previous value;
@@ -423,17 +431,18 @@ The rules above say when locks are necessary but say nothing about when locks
 are unnecessary, and it is important for efficiency not to lock too much,
 because locks reduce parallelism.  If parallelism isn't important, then one
 could arrange to have only a single thread and not worry about locks.  A simple
-kernel can do this on a multiprocessor by having a single lock that must be
-acquired on entering the kernel and released on exiting the kernel (though
-blocking system calls such as pipe reads or
-\lstinline{wait}
-would pose a problem).  Many uniprocessor operating systems have been converted to
+kernel can do this on a multiprocessor by having a single lock;
+the kernel acquires the lock every time the kernel is entered
+from user space, for a system call or interrupt;
+the kernel releases the lock when it returns to user space.
+Many uniprocessor operating systems have been converted to
 run on multiprocessors using this approach, sometimes called a ``big
 kernel lock,'' but the approach sacrifices parallelism: only one
-CPU can execute in the kernel at a time.  If the kernel does any heavy
-computation, it would be more efficient to use a larger set of more
-fine-grained locks, so that the kernel could execute on multiple CPUs
-simultaneously.
+CPU can execute in the kernel at a time.  If the kernel consumes
+significant CPU time, more parallelism could be obtained by
+protecting different objects or modules with different locks,
+so that different CPUs could be
+executing in different parts of the kernel at the same time.
 
 As an example of coarse-grained locking, xv6's \lstinline{kalloc.c}
 allocator has a single free list protected by a single lock. If
@@ -441,8 +450,8 @@ multiple processes on different CPUs try to allocate pages at the same
 time, each will have to wait for its turn by spinning in {\tt
   acquire}. Spinning wastes CPU time, since it's not useful work.
 If contention for the lock wasted a significant fraction of CPU time,
-perhaps performance could be improved by changing the allocator design
-to have multiple free lists, each with its own lock, to allow truly
+perhaps performance could be improved by changing the allocator 
+to have a separate free list per CPU, each with its own lock, to allow truly
 parallel allocation.
 
 As an example of fine-grained locking, xv6 has a separate lock for
@@ -466,7 +475,8 @@ lists all of the locks in xv6.
 {\bf Lock} & {\bf Description} \\
 \midrule
 bcache.lock & Protects allocation of block buffer cache entries \\
-cons.lock & Serializes access to console hardware, avoids intermixed output \\
+cons.lock & Serializes read processing of console input \\
+tx\_lock & Serializes access to console (uart) output hardware \\
 ftable.lock & Serializes allocation of a struct file in file table \\
 itable.lock & Protects allocation of in-memory inode entries \\
 vdisk\_lock & Serializes access to disk hardware and queue of DMA descriptors \\
@@ -485,24 +495,42 @@ buf's b->lock & Serializes operations on each block buffer \\
 \end{figure}
 
 %% 
+\newpage
 \section{Deadlock and lock ordering}
 %% 
-If a code path through the kernel must hold several locks at the same time, it is
-important that all code paths acquire those locks in the same order.  If
-they don't, there is a risk of \indextext{deadlock}.  Let's say two code paths in
-xv6 need locks A and B, but code path 1 acquires locks in the order A
-then B, and the other path acquires them in the order B then A.
-Suppose thread T1 executes code path 1 and acquires lock A,
-and thread T2 executes code path 2 and acquires lock B.
-Next T1 will try to acquire lock B, and T2 will try to acquire lock A.
-Both acquires will block indefinitely, because in both cases the
-other thread holds the needed lock, and won't release it until
-its acquire returns.
-To avoid such deadlocks, all code paths must acquire
-locks in the same order. The need for a global lock acquisition order
-means that locks are effectively part of each function's specification: 
-callers must invoke functions in a way that causes locks to be acquired
-in the agreed-on order.
+
+Suppose kernel threads T1 and T2 both have a point at which each needs
+to hold both lock A and lock B, and they acquire them in different
+orders:
+
+\begin{verbatim}
+  T1             T2
+  --             --
+  acquire(&A)    acquire(&B)
+  acquire(&B)    acquire(&A)
+  ...
+  release(&B)    release(&A)
+  release(&A)    release(&B)
+\end{verbatim}
+
+With a bit of bad luck, T1 and T2 might both execute their first
+acquire at exactly the same moment; both can succeed, since they are
+asking for different locks. But then both T1 and T2 will have to wait
+in their second calls to {\tt acquire()}, since both locks are already
+held by the other thread. Because both threads are waiting for each
+other, neither will ever release a lock, and both will wait forever.
+This situation is called \indextext{deadlock}.
+
+The key problem in the T1/T2 example is that the two threads acquired
+the locks in different orders. If they had both tried to acquire A
+first, one would have acquired A and then B and then released them both,
+and then the other thread could have proceeded. More generally,
+locking code must follow this rule to avoid deadlock: all code paths
+that hold multiple locks must acquire locks in the same order. The
+need for this global lock acquisition order means that locks are
+effectively part of each function's specification: callers must invoke
+functions in a way that causes locks to be acquired in the agreed-on
+order.
 
 Xv6 has many lock-order chains of length two involving
 per-process locks
@@ -554,76 +582,21 @@ scheme, since more locks often means more opportunity for deadlock.
 The need to avoid deadlock is often a major factor in kernel
 implementation.
 
-\section{Re-entrant locks}
+A question that sometimes arises is what should happen if a thread
+tries to acquire a lock that the same thread already holds. One line
+of reasoning is that this should be allowed: no other thread can hold
+the lock, so there's no need to worry about threads interfering with
+each others' use of the protected data. This is called a {\it
+  re-entrant} or {\it recursive} locking scheme. On the other hand, if
+the lock is already held, that means some operation may have
+temporarily violated and not yet restored some invariants; to allow a
+new operation to commence while the invariants don't hold seems like
+an invitation to bugs. Xv6 takes this latter view, and forbids a
+thread that currently holds a lock from re-acquiring it. Detecting
+this situation is the purpose of the call to {\tt holding} in {\tt
+  acquire}.
 
-It might appear that some deadlocks and lock-ordering challenges could
-be avoided by using \indextext{re-entrant locks}, which are also
-called \indextext{recursive locks}.  The idea is that if the lock is held
-by a process and if that process attempts to acquire the lock again,
-then the kernel could just allow this (since the process already has
-the lock), instead of calling panic, as the xv6 kernel does.
-
-It turns out, however, that re-entrant locks make it harder to reason
-about concurrency: re-entrant locks break the intuition that locks
-cause critical sections to be atomic with respect to other critical
-sections.  Consider the following functions \lstinline{f}
-and \lstinline{g}, and a hypothetical function \lstinline{h}:
-
-\begin{lstlisting}
-struct spinlock lock;
-int data = 0; // protected by lock
-
-f() {
-  acquire(&lock);
-  if(data == 0){
-    call_once();
-    h();
-    data = 1;
-  }
-  release(&lock);
-}
-
-g() {
-  aquire(&lock);
-  if(data == 0){
-    call_once();
-    data = 1;
-  }
-  release(&lock);
-}
-
-h() {
-    ...
-}
-\end{lstlisting}
-
-Looking at this code fragment, the intuition is that
-\lstinline{call_once} will be called
-only once: either by \lstinline{f}, or by \lstinline{g}, but not by
-both.
-
-But if re-entrant locks are allowed, and \lstinline{h} happens to call
-\lstinline{g}, \lstinline{call_once}
-will be called \emph{twice}.
-
-If re-entrant locks aren't allowed, then \lstinline{h} calling
-\lstinline{g} results in a deadlock, which is not great either. But,
-assuming it would be a serious error to call
-\lstinline{call_once}, a deadlock is
-preferable.  The kernel developer will observe the deadlock (the
-kernel panics) and can fix the code to avoid it, while calling
-\lstinline{call_once} twice may
-silently result in an error that is difficult to track down.
-
-For this reason, xv6 uses the simpler to understand non-re-entrant
-locks.  As long as programmers keep the locking rules in mind,
-however, either approach can be made to work. If xv6 were to use
-re-entrant locks, one would have to modify \lstinline{acquire} to
-notice that the lock is currently held by the calling thread. One
-would also have to add a count of nested acquires to struct spinlock,
-in similar style to \lstinline{push_off}, which is discussed next.
-
-\section{Locks and interrupt handlers}
+\section{Locks and interrupts}
 \label{s:lockinter}
 
 %% 
@@ -875,7 +848,7 @@ arrange that other CPUs that run threads of the same process update
 their hardware page tables to reflect the change in the address space.
 
 It is possible to implement locks without atomic
-instructions~\cite{lamport:bakery}, but it is expensive, and most
+instructions~\cite{lamport:bakery}, but it is expensive, so most
 operating systems use atomic instructions.
 
 Locks can be expensive if many CPUs try to acquire the same lock
@@ -960,4 +933,6 @@ changing its shared address space.
 % LocalWords:  amoswap cpu bcache ftable itable inode vdisk DMA kmem
 % LocalWords:  pid proc's tickslock inode's ip buf's proc SCHED sys
 % LocalWords:  consoleintr wakeup clockintr intr acquiresleep POSIX
-% LocalWords:  Pthreads pthread unmaps TLB IPIs
+% LocalWords:  Pthreads pthread unmaps TLB IPIs SMP firstnumber int
+% LocalWords:  structure's spinlocks addr tx uart pipe's wakeups A's
+% LocalWords:  usertests
