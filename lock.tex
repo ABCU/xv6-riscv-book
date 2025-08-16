@@ -499,12 +499,12 @@ buf's b->lock & Serializes operations on each block buffer \\
 \section{Deadlock and lock ordering}
 %% 
 
-Suppose kernel threads T1 and T2 both have a point at which each needs
-to hold both lock A and lock B, and they acquire them in different
-orders:
+Suppose the code running on CPUs C1 and C2 both have a point at which
+each needs to hold both lock A and lock B, and they acquire them in
+different orders:
 
 \begin{verbatim}
-  T1             T2
+  C1             C2
   --             --
   acquire(&A)    acquire(&B)
   acquire(&B)    acquire(&A)
