@@ -3,6 +3,8 @@
 *.ps
 latex.out/
 xv6-riscv-src
+xv6-src-booklet/fmt
+xv6-src-booklet/xv6.pdf
 *.aux
 *.idx
 *.ilg
