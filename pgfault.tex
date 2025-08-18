@@ -48,7 +48,7 @@ kernel/vm.c}.
 
 xv6's \indextext{lazy allocation} has two parts.
 First, when an application asks for memory by calling
-\lstinline{sbrk}, the kernel notes the increase in size, but does not
+\lstinline{sbrk} with the flag \lstinline{SBRK_LAZY}, the kernel notes the increase in size, but does not
 allocate physical memory and does not create PTEs for the new range of
 virtual addresses.  Second, on a page fault on one of those new
 addresses, the kernel allocates a page of physical memory and maps it
@@ -75,14 +75,34 @@ batch of consecutive pages per page fault instead of one page and by
 specializing the kernel entry/exit code for such page-faults (though
 xv6 does neither).
 
+On the other hand, when taking a page fault for a lazily-allocated
+page, the kernel may find that it has not free memory to allocate.  In
+this case, the kernel has no easy way of returning an out-of-memory
+error to the application and instead kills the application.  For
+applications that prefer an error on a failed allocation, xv6 allows
+an application to allocate memory eagerly by calling \lstinline{sbrk}
+with the flag \lstinline{SBRK_EAGER}.
+
 \section{Code}
 
 The system call {\tt sbrk(n)} grows (or shrinks if {\tt n}
 is negative) a process's memory size by {\tt n} bytes, and returns
 the start of the newly allocated region (i.e., the old size).
 The kernel implementation is \lstinline{sys_sbrk}
-\lineref{kernel/sysproc.c:/^sys_sbrk/}.  To grow a process's
-memory, {\tt sys\_sbrk} just increments the process's size
+\lineref{kernel/sysproc.c:/^sys_sbrk/}.
+
+If the application specifies \lstinline{SBRK_AGER}, the system
+call is implemented by the function
+\lstinline{growproc}
+\lineref{kernel/proc.c:/^growproc/}.
+\lstinline{growproc} calls \lstinline{uvmalloc}.
+\lstinline{uvmalloc}
+\lineref{kernel/vm.c:/^uvmalloc/}
+allocates physical memory with {\tt kalloc}, zeros the allocated memory,
+and adds PTEs to the user page table with {\tt mappages}.
+
+If the applications allocates memory lazily, \lstinline{sys_sbrk}
+just increments the process's size
 (\lstinline{myproc()->sz}) by {\tt n} and returns the old size; it does
 not allocate physical memory or add PTEs to the process's page table.
 
