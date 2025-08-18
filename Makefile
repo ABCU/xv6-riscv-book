@@ -26,6 +26,9 @@ book.pdf: src book.tex $(TEX)
 	pdflatex book.tex
 	pdflatex book.tex
 
+lineref: $(TEX)
+	echo done
+
 clean:
 	rm -f book.aux book.idx book.ilg book.ind book.log\
 	 	book.toc book.bbl book.blg book.out
