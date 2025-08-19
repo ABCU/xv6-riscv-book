@@ -81,7 +81,7 @@ implements them, and how it uses them.
 
 As an example of why we need locks, consider two processes
 with exited children calling
-{\tt wait} on two different
+the {\tt wait} system call on two different
 CPUs.  {\tt wait} frees the child's memory.
 Thus
 on each CPU, the kernel will call {\tt kfree}
@@ -575,7 +575,8 @@ Sometimes the identities of locks aren't known in advance, perhaps
 because one lock must be held in order to discover the identity
 of the lock to be acquired next. This kind of situation arises in the
 file system as it looks up successive components in a path name, and
-in the code for {\tt wait} and {\tt exit} as they search the table of
+in the code for the {\tt wait} and {\tt exit} system calls
+as they search the table of
 processes looking for child processes. Finally, the danger of deadlock
 is often a constraint on how fine-grained one can make a locking
 scheme, since more locks often means more opportunity for deadlock.
@@ -611,7 +612,7 @@ at about the same time that a kernel
 thread reads
 \lstinline{ticks} 
 in
-\indexcode{sys_sleep}
+\indexcode{sys_pause}
 \lineref{kernel/sysproc.c:/ticks0.=.ticks/}.
 The lock
 \indexcode{tickslock}
@@ -619,7 +620,7 @@ serializes the two accesses.
 
 The interaction of spinlocks and interrupts raises a potential danger.
 Suppose
-\indexcode{sys_sleep}
+\indexcode{sys_pause}
 holds
 \indexcode{tickslock},
 and its CPU is interrupted by a timer interrupt.
@@ -630,9 +631,9 @@ see it was held, and wait for it to be released.
 In this situation,
 \lstinline{tickslock}
 will never be released: only
-\lstinline{sys_sleep}
+\lstinline{sys_pause}
 can release it, but
-\lstinline{sys_sleep}
+\lstinline{sys_pause}
 will not continue running until
 \lstinline{clockintr}
 returns.

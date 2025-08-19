@@ -29,7 +29,7 @@ in {\tt kernel/proc.c}.
 Xv6 multiplexes by switching each CPU from one process to
 another in two situations. First, xv6
 switches when a process makes a system
-call that blocks (has to wait), for example in \lstinline{read} or
+call that blocks (has to wait), for example \lstinline{read} or
 \lstinline{wait}.
 Second, xv6 periodically forces a switch to cope with
 processes that compute for long periods without blocking.
@@ -197,7 +197,7 @@ You can see this sequence in
 \lineref{kernel/proc.c:/^yield/},
 \texttt{sleep}
 and
-\texttt{exit}.
+\texttt{kexit}.
 \indexcode{sched}
 calls
 \indexcode{swtch}

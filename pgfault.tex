@@ -143,7 +143,8 @@ process. That is the reason why freeing user memory (in {\tt
 \section{Real world: Copy-On-Write (COW) fork}
 
 Many kernels (though not xv6) use page faults to implement
-\indextext{copy-on-write (COW) fork}. {\tt fork} promises that the
+\indextext{copy-on-write (COW) fork}. The {\tt fork} system call
+promises that the
 child sees memory whose initial content is the same as the parent's
 memory at the time of the fork. One way to implement this is to copy
 the entire memory of the parent to newly allocated physical memory for
@@ -194,7 +195,7 @@ them to benefit.
 \section{Real world: Demand paging}
 
 Yet another widely-used feature that exploits page faults is
-\indextext{demand paging}.  In \lstinline{exec}, xv6 loads all 
+\indextext{demand paging}.  In the \lstinline{exec} system call, xv6 loads all 
 of an application's text
 and data into memory before starting
 the application.  Since applications

@@ -224,10 +224,11 @@ to read or write physical address $x$ simply by loading
 or storing to virtual address $x$.
 The kernel code itself is located at \lstinline{KERNBASE=0x80000000} in both
 the virtual address space and in physical memory.
-When \lstinline{fork}
+When \lstinline{kfork}
+\lineref{kernel/proc.c:/^kfork/}
 allocates user memory for the child process,
 the allocator returns the physical address of that memory;
-\lstinline{fork} uses that address directly as a virtual
+\lstinline{kfork} uses that address directly as a virtual
 address when it is copying the parent's user memory to the child.
 
 There are a couple of kernel virtual
@@ -591,7 +592,7 @@ carefully and other techniques, such as randomizing of the layout of the
 user address space, make such attacks harder.
 
 The stack is a single page, and is shown with the initial contents as
-created by exec.  Strings containing the command-line arguments, as
+created by the {\tt exec} system call.  Strings containing the command-line arguments, as
 well as an array of pointers to them, are at the very top of the
 stack.  Just under that are values that allow a program to start at
 \lstinline{main} as if the function \lstinline{main(argc},
@@ -636,7 +637,8 @@ user address space with data read from a file, called a binary
 or executable file.
 A binary is typically the output of the compiler and linker,
 and holds machine instructions and program data.
-\lstinline{exec} \lineref{kernel/exec.c:/^exec/} opens the
+\lstinline{kexec} \lineref{kernel/exec.c:/^kexec/},
+the kernel's internal implementation of {\tt exec}, opens the
 named binary \lstinline{path} using \indexcode{namei}
 \lineref{kernel/exec.c:/namei/}, which is explained in
 Chapter~\ref{CH:FS}.  Then, it reads the ELF header. Xv6 binaries
@@ -660,10 +662,10 @@ or
 \indexcode{ELF_MAGIC}
 \lineref{kernel/elf.h:/ELF_MAGIC/}.
 If the ELF header has the right magic number,
-\lstinline{exec}
+\lstinline{kexec}
 assumes that the binary is well-formed.
 
-\lstinline{exec}
+\lstinline{kexec}
 allocates a new page table with no user mappings with
 \indexcode{proc_pagetable}
 \lineref{kernel/exec.c:/proc_pagetable/},
@@ -733,10 +735,10 @@ from the file
 \lstinline{/init}.
 
 Now
-\indexcode{exec}
+\indexcode{kexec}
 allocates and initializes the user stack.
 It allocates just one stack page.
-\lstinline{exec}
+\lstinline{kexec}
 copies the argument strings to the top of the stack
 one at a time, recording the pointers to them in
 \indexcode{ustack}.
@@ -749,46 +751,46 @@ through the system-call return path:  \lstinline{argc} is passed via the
 system call return value, which goes in {\tt a0}, and \lstinline{argv} is passed through
 the {\tt a1} entry of the process's trapframe.
 
-\lstinline{exec}
+\lstinline{kexec}
 places an inaccessible page just below the stack page,
 so that programs that try to use more than one page will fault.
 This inaccessible page also allows
-\lstinline{exec}
+\lstinline{kexec}
 to deal with arguments that are too large;
 in that situation,
 the
 \indexcode{copyout}
 \lineref{kernel/vm.c:/^copyout/}
 function that
-\lstinline{exec}
+\lstinline{kexec}
 uses to copy arguments to the stack will notice that
 the destination page is not accessible, and will
 return -1.
 
 During the preparation of the new memory image,
 if
-\lstinline{exec}
+\lstinline{kexec}
 detects an error like an invalid program segment,
 it jumps to the label
 \lstinline{bad},
 frees the new image,
 and returns -1.
-\lstinline{exec}
+\lstinline{kexec}
 must wait to free the old image until it
 is sure that the system call will succeed:
 if the old image is gone,
 the system call cannot return -1 to it.
 The only error cases in
-\lstinline{exec}
+\lstinline{kexec}
 happen during the creation of the image.
 Once the image is complete,
-\lstinline{exec}
+\lstinline{kexec}
 can commit to the new page table
 \lineref{kernel/exec.c:/pagetable.=.pagetable/}
 and free the old one
 \lineref{kernel/exec.c:/proc_freepagetable/}.
 
-\lstinline{exec}
+The \lstinline{exec} system call
 loads bytes from the ELF file into memory at addresses specified by the ELF file.
 Users or processes can place whatever addresses they want into an ELF file.
 Thus

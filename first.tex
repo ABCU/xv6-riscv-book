@@ -17,7 +17,7 @@
 
 A key requirement for an operating system is to support several activities at once.  For
 example,
-one might use the {\tt fork} and {\tt exec} calls from
+one might use the {\tt fork} and {\tt exec} system calls from
 Chapter~\ref{CH:UNIX}
 to start both a compiler and a text editor as processes.
 The operating system must 
@@ -585,10 +585,10 @@ All newly created processes start executing in the kernel in
 \lstinline{forkret}
 \lineref{kernel/proc.c:/^forkret/}.
 As a special case for the first process, {\tt forkret}
-calls {\tt exec} to load the user program {\tt /init}.
+calls {\tt kexec} to load the user program {\tt /init}.
 
 After calling
-\lstinline{exec},
+\lstinline{kexec},
 {\tt forkret} returns to user space in
 the \lstinline{/init} process.
 \lstinline{init}

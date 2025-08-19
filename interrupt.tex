@@ -211,7 +211,7 @@ The latter function increments {\tt ticks},
 allowing the kernel to track the
 passage of time. The increment occurs on only one CPU, to avoid time
 passing faster if there are multiple CPUs.
-{\tt clockintr} wakes up any processes waiting in the {\tt sleep}
+{\tt clockintr} wakes up any processes waiting in the {\tt pause}
 system call,
 and schedules the next timer interrupt by writing
 {\tt stimecmp}.
