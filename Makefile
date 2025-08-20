@@ -10,7 +10,7 @@ all: book.pdf
 
 $(T)/%.tex: %.tex | src
 	mkdir -p latex.out
-	./lineref $(notdir $@) $(SRC) > $@
+	./lineref $(notdir $@) $(SRC)  xv6-riscv-src-booklet/fmt > $@
 
 src:
 	if [ ! -d $(SRC) ]; then \
@@ -20,13 +20,18 @@ src:
 	fi; \
 	true
 
-book.pdf: src book.tex $(TEX)
+booklet: src
+	(cd xv6-riscv-src-booklet; make)
+	mv xv6-riscv-src-booklet/xv6-src-booklet.pdf .
+
+book.pdf: booklet book.tex $(TEX)
 	pdflatex book.tex
 	bibtex book
 	pdflatex book.tex
 	pdflatex book.tex
 
-lineref: $(TEX)
+
+lineref: $(TEX) booklet
 	echo done
 
 clean:
