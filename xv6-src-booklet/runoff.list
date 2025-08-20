@@ -59,7 +59,6 @@ kernel/uart.c
 kernel/virtio_disk.c
 
 # user-level
-user/usys.S
 user/init.c
 user/sh.c
 
