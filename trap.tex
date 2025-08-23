@@ -58,7 +58,7 @@ Each RISC-V CPU has a set of hardware control registers that the kernel writes t
 tell the CPU how to handle traps, and that the kernel can read
 to find out about a trap that has occurred. The RISC-V documents
 contain the full story~\cite{riscv:priv}. {\tt riscv.h}
-\lineref{kernel/riscv.h:1} contains definitions that xv6 uses. Here's
+\fileref{kernel/riscv.h} contains definitions that xv6 uses. Here's
 an outline of the most important registers:
 
 \begin{itemize}

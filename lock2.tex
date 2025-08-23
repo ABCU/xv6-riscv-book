@@ -21,7 +21,7 @@ It's vital that a given disk block have at most
 one copy in the cache; otherwise, different processes might make
 conflicting changes to different copies of what ought to be the same
 block. Each cached block is stored in a {\tt struct buf}
-\lineref{kernel/buf.h:1}. A {\tt struct buf} has a lock field which
+\fileref{kernel/buf.h}. A {\tt struct buf} has a lock field which
 helps ensure that only one process uses a given disk block at a time.
 However, that lock is not enough: what if a block is not present in
 the cache at all, and two processes want to use it at the same time?
