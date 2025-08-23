@@ -233,6 +233,10 @@ and then calls
 \indexcode{swtch}
 to start running it
 \linerefs{kernel/proc.c:/Switch.to/,/swtch/}.
+At some point in the past, the target process must
+have called {\tt swtch()}; the scheduler's call to
+{\tt swtch()} effectively returns from that
+earlier call.
 Figure~\ref{fig:inout} illustrates this pattern.
 
 \begin{figure}[t]
@@ -252,8 +256,8 @@ acquires the lock,
 but it's released in the target after {\tt swtch} returns.
 This arrangement is unusual: it's more common for
 the thread that acquires a lock to also release it.
-Xv6's context switching must break this convention because
-\indexcode{p->lock}
+Xv6's context switching breaks this convention because
+\indexcode{p->state}
 and
 \lstinline{p->context}
 must be updated together atomically.

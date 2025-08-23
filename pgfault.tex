@@ -110,7 +110,7 @@ When a process loads or stores to a virtual address that
 lacks a valid page-table mapping, the CPU will
 raise \indextext{page-fault exception}.
 \lstinline{usertrap} checks for this case
-(\lineref{kernel/trap.c:/page fault/})
+\lineref{kernel/trap.c:/page fault/}
 and calls \lstinline{vmfault}
 \lineref{kernel/vm.c:/^vmfault/}
 to handle the page fault.  \lstinline{vmfault}
