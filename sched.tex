@@ -254,31 +254,32 @@ This arrangement is unusual: it's more common for
 the thread that acquires a lock to also release it.
 Xv6's context switching must break this convention because
 \indexcode{p->lock}
-protects invariants on the process's
-\lstinline{state}
 and
-\lstinline{context}
-fields that are not true while executing in
-\lstinline{swtch}.
+\lstinline{p->context}
+must be updated together atomically.
 For example, if
 \lstinline{p->lock}
-were not held during
+were released before invoking 
 \indexcode{swtch},
-a different CPU might decide
-to run the process after 
-\indexcode{yield}
-had set its state to
-\lstinline{RUNNABLE},
-but before 
-\lstinline{swtch}
-caused it to stop using its own kernel stack.
-The result would be two CPUs running on the same stack,
+a different CPU $c$ might decide
+to run the process because
+its state is \lstinline{RUNNABLE}.
+CPU $c$ will invoke \lstinline{swtch}
+which will restore from \lstinline{p->context}
+while the original CPU
+is still saving into
+\lstinline{p->context}.
+The result would be that the process
+would be restored with partially-saved registers on CPU $c$ and
+that both CPUs will be using the same stack,
 which would cause chaos.
 Once \lstinline{yield} has started to modify a running process's state
 to make it
 \lstinline{RUNNABLE},
-\lstinline{p->lock} must remain held until the invariants are restored:
-the earliest correct release point is after
+\lstinline{p->lock} must remain held until
+the process has saved all its registers and
+the scheduler is running on its stack.
+The earliest correct release point is after
 \lstinline{scheduler}
 (running on its own stack)
 clears
