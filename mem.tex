@@ -292,7 +292,7 @@ before proceeding.
 
 Most of the xv6 code for manipulating address spaces and
 page tables resides in {\tt vm.c}
-\lineref{kernel/vm.c:1}.
+\fileref{kernel/vm.c}.
 The central data structure is {\tt pagetable\_t}, which
 is really a pointer to a RISC-V root page-table page;
 a {\tt pagetable\_t} may be either the kernel
@@ -455,7 +455,7 @@ Please read {\tt kernel/kalloc.c}.
 \section{Code: Physical memory allocator}
 %% 
 
-The allocator resides in {\tt kalloc.c} \lineref{kernel/kalloc.c:1}.
+The allocator resides in {\tt kalloc.c} \fileref{kernel/kalloc.c}.
 The allocator's data structure is a
 \textit{free list}
 of physical memory pages that are available

@@ -20,17 +20,12 @@ def line_number(path, i, line):
    else:
       return i
 
-def lookup_lineref_booklet(fname, lineno):
+def lookup_fileref_booklet(fname):
    p = xv6booklet
    try:
       with open(p +'/'+fname) as f:
          line = f.readline()         
-         cnt = 1
-         while line:
-            if lineno == cnt:
-               return line_number(p, cnt, line)
-            line = f.readline()
-         return None
+         return line_number(p, 1, line)
    except IOError:
       print("error: cannot open %s" % fname, file=sys.stderr)
       return None
@@ -87,7 +82,7 @@ def lineref(l):
       f = m.groups()[0]
       (i, j) = lookup_regex(xv6src, f, m.groups()[1])
       (i0, j0) = lookup_regex_booklet(f, m.groups()[1])
-      print(f, m.groups()[1], i, i0, file=sys.stderr)
+      # print(f, m.groups()[1], i, i0, file=sys.stderr)
       delta = 0
       if m.groups()[2] != None:
          delta = int(m.groups()[2])
@@ -95,15 +90,14 @@ def lineref(l):
          l = p.sub(r'\\showlineref{%s}{%s}{%s}' % (f,str(i+delta),fmt_line(i0+delta)), l)
          print(l, end="")
       return
-   # file:/line/
-   p = re.compile(r'\\lineref\{(.*):(\d+)\}')
+   # fileref
+   p = re.compile(r'\\fileref\{(.*)\}')
    m = p.search(l)
    if m != None:
       f = m.groups()[0]
-      n = m.groups()[1]
-      n0 = lookup_lineref_booklet(f, int(n))
-      print(f, n, n0, file=sys.stderr)
-      l = p.sub(r'\\showlineref{%s}{%s}{%s}' % (f, n, fmt_line(n0)), l)
+      n0 = lookup_fileref_booklet(f)
+      print("fileref", f, n0, file=sys.stderr)
+      l = p.sub(r'\\showfileref{%s}{%s}' % (f, fmt_line(n0)), l)
       print(l, end="")
       return
    # file:/pattern/delta,pattern/delta
