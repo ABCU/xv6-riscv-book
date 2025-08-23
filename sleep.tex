@@ -67,12 +67,13 @@ Here's a sketch of how the xv6 kernel pipe code uses
 piperead(pipe){
   acquire(&pipe->lock);
   while(there's no data in pipe->buffer){
-    // ZZZ
+    (*@\textcolor{blue}{// ZZZ}@*)
     sleep(&pipe, &pipe->lock);
   }
   remove the data from the pipe;
   release(&pipe->lock);
 }
+
 pipewrite(pipe){
   acquire(&pipe->lock);
   append data to pipe->buffer;
