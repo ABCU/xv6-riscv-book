@@ -91,7 +91,7 @@ def lineref(l):
          print(l, end="")
       return
    # fileref
-   p = re.compile(r'\\fileref\{(.*)\}')
+   p = re.compile(r'\\fileref\{([^}]*)\}')
    m = p.search(l)
    if m != None:
       f = m.groups()[0]
