@@ -236,23 +236,7 @@ to start running it
 Figure~\ref{fig:inout} illustrates this pattern.
 
 \begin{figure}[t]
-\begin{verbatim}
-process #1              scheduler()           process #2
-----------              -----------           ----------
-acquire(&p->lock);
-p->state = RUNNABLE;
-swtch(...); // call
-                        swtch(...); // return
-                        release(&p->lock);
-
-                        find a RUNNABLE p
-
-                        acquire(&p->lock);
-                        p->state = RUNNING;
-                        swtch(...); // call
-                                              swtch(...); // return
-                                              release(&p->lock);
-\end{verbatim}
+\input{fig/switch.tex}
 \caption{{\tt swtch()} always has the scheduler thread as either source
 or destination, and the relevant {\tt p->lock} is always held.}
 \label{fig:inout}
