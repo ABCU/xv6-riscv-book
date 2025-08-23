@@ -1,6 +1,6 @@
 # make a printout
 SRC=../xv6-riscv-src
-FS = $(shell grep -v '^#' runoff.list)
+FS = $(shell grep -v '^\#' runoff.list)
 FILES = $(addprefix $(SRC)/,$(FS))
 
 PRINT = runoff.list runoff.spec $(SRC)/README toc.hdr toc.ftr $(FILES)
