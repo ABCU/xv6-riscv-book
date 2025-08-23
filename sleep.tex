@@ -108,6 +108,12 @@ But then the call to \lstinline{sleep} might never wake up,
 since the \lstinline{wakeup} intended for it has already happened.
 This undesirable situation is called a \indextext{lost wake-up}.
 
+\begin{figure}[t]
+  \input{fig/sleep.tex}
+  \caption{Overlapping locks to avoid lost-wakeup}
+    \label{fig:inout}
+\end{figure}
+
 In the pipe example above, the lost wake-up being avoided is the
 possibility that a thread on another CPU might call \lstinline{pipewrite}
 at the point marked {\tt ZZZ},
