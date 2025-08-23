@@ -138,22 +138,10 @@ the CPU switch to a kernel-specified instruction address, namely {\tt
   stvec}.
 
 \section{Traps from user space}
-
 \begin{figure}[t]
-\begin{verbatim}
-  user code         user code
-      |                 ^
-      v                 |
-  trampoline        trampoline
-   uservec           userret
-      |                 ^
-      v                 |
-   usertrap() ----------|
-      |
-      v
-  syscall(), or
-  device driver
-\end{verbatim}
+  \begin{center}
+    \input{fig/trap.tex}
+  \end{center}
 \caption{Outline of how a trap from user code is handled.}
 \label{fig:usertrap}
 \end{figure}
@@ -168,7 +156,7 @@ A trap may occur while executing in user space if the
 user program makes a
 system call ({\tt ecall} instruction), or does something
 illegal, or if a device interrupts.
-The high-level path of a trap from user space is
+As shown in Figure~\ref{fig:usertrap}, the high-level path of a trap from user space is
 {\tt uservec}
 \lineref{kernel/trampoline.S:/^uservec/},
 then {\tt usertrap}
