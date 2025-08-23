@@ -503,15 +503,9 @@ Suppose the functions running on CPUs C1 and C2 both have a point at
 which each needs to hold both lock A and lock B, and they acquire them
 in different orders:
 
-\begin{verbatim}
-  C1             C2
-  --             --
-  acquire(&A)    acquire(&B)
-  acquire(&B)    acquire(&A)
-  ...
-  release(&B)    release(&A)
-  release(&A)    release(&B)
-\end{verbatim}
+\begin{center}
+  \input{fig/order.tex}
+\end{center}
 
 With a bit of bad luck, C1 and C2 might both execute their first
 acquire at exactly the same moment; both can succeed, since they are
