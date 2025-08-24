@@ -92,7 +92,7 @@ thread that sleeps and the thread that calls \lstinline{wakeup}, so
 there always turns out to be a lock that protects the condition. That lock is
 called the \indextext{condition lock}. In the pipe code above, both
 functions use the pipe and its buffer while holding the pipe lock,
-which in this case is the condition lock. It's a rule that any code
+which in this case is also the condition lock. It's a rule that any code
 that calls \lstinline{sleep} or \lstinline{wakeup} must hold the
 condition lock, and that the lock must be passed to \lstinline{sleep}
 as the second argument.
@@ -107,12 +107,6 @@ wake up; the \lstinline{wakeup} would simply return.
 But then the call to \lstinline{sleep} might never wake up,
 since the \lstinline{wakeup} intended for it has already happened.
 This undesirable situation is called a \indextext{lost wake-up}.
-
-\begin{figure}[t]
-  \input{fig/sleep.tex}
-  \caption{Overlapping locks to avoid lost-wakeup}
-    \label{fig:inout}
-\end{figure}
 
 In the pipe example above, the lost wake-up being avoided is the
 possibility that a thread on another CPU might call \lstinline{pipewrite}
@@ -210,6 +204,12 @@ it changes that process's state to
 The next time \lstinline{scheduler} runs, it will
 see that the process is ready to be run.
 
+\begin{figure}[t]
+  \input{fig/sleep.tex}
+  \caption{Overlapping locks to avoid lost-wakeup}
+    \label{fig:overlap}
+\end{figure}
+
 Why do the locking rules for 
 \lstinline{sleep}
 and
@@ -220,17 +220,19 @@ The going-to-sleep process holds either
 the condition lock or its own
 \lstinline{p->lock} 
 or both from {\it before} it checks the condition
-until {\it after} it has marked itself as \texttt{SLEEPING}.
-The process calling \texttt{wakeup} holds \textit{both}
-locks in \texttt{wakeup}'s loop.
-Thus the waker either makes the condition true before
-the consuming thread checks the condition;
-or the waker's \lstinline{wakeup} examines the sleeping
-thread strictly after it has been marked \texttt{SLEEPING}.
-Then 
-\lstinline{wakeup}
-will see the sleeping process and wake it up
-(unless something else wakes it up first).
+until {\it after} it has marked itself as \texttt{SLEEPING};
+see Figure~\ref{fig:overlap}.
+The process calling \texttt{wakeup} needs to aquire \textit{both}
+locks.
+The waker might acquire the locks first, which means
+it will make the condition true before the consuming
+thread checks the condition, and the consuming thread
+won't need to call {\tt sleep()};
+or the waker's {\tt acquire()}s might have to wait until the consuming
+thread has completely finished going to sleep and
+releases the locks, in which case the waker will then see
+that the consuming thread is marked {\tt SLEEPING}
+and will wake it up.
 
 Sometimes multiple processes are sleeping
 on the same channel; for example, more than one process
