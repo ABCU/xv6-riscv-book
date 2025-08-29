@@ -423,9 +423,8 @@ might be able to scribble on some other process's memory.  The RISC-V
 has an instruction \indexcode{sfence.vma} that flushes
 the current CPU's TLB.
 Xv6 executes {\tt sfence.vma} in {\tt kvminithart}  after reloading the 
-\texttt{satp} register, and in the trampoline code that
-switches to a user page table before returning to user space
-\lineref{kernel/trampoline.S:/sfence.vma/}.
+\texttt{satp} register, and in the trampoline code for
+\lstinline{uservec} and \lstinline{userret}.
 
 It is also necessary to issue \texttt{sfence.vma} before changing
 \texttt{satp}, in order to wait for completion of all outstanding loads and
