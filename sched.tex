@@ -129,7 +129,8 @@ swtch:
 in this case, the two {\tt struct context} pointers.
 {\tt 16(a0)} refers to an offset 16 bytes into the memory
 pointed to by {\tt a0}; referring
-to the definition of {\tt struct proc} in {\tt kernel/proc.h},
+to the definition of {\tt struct context} in {\tt kernel/proc.h}
+\lineref{kernel/proc.h:/^struct.context/},
 this is the structure field called {\tt s0}.
 
 Where does {\tt swtch}'s {\tt ret} return to? It returns to the
