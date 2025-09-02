@@ -468,7 +468,7 @@ and resumes the interrupted kernel code.
 
 Xv6 sets a CPU's {\tt stvec} to {\tt kernelvec} when that CPU
 enters the kernel from user space; you can see this in {\tt usertrap}
-\lineref{kernel/trap.c:/stvec.*kernelvec/}.
+\lineref{kernel/trap.c:/DOC: kernelvec/}.
 But there's a window of time when the kernel has started executing
 but {\tt stvec} is still set to {\tt uservec}, and it's crucial that 
 no device interrupt occur during that window.
