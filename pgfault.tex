@@ -33,7 +33,7 @@ Application programmers can also benefit. One possibility is
 memory-mapped files, where the kernel uses paging to cause a file's
 content to appear in an application's address space, transparently
 reading file blocks in response to page faults. Another is lazy memory
-allocation, which allows allows a program to ask for a huge virtual
+allocation, which allows a program to ask for a huge virtual
 address space, but only to pay the cost of allocating physical memory
 for the pages the program actually reads and writes. xv6 uses page
 faults for only one purpose: lazy allocation.
@@ -91,7 +91,7 @@ the start of the newly allocated region (i.e., the old size).
 The kernel implementation is \lstinline{sys_sbrk}
 \lineref{kernel/sysproc.c:/^sys_sbrk/}.
 
-If the application specifies \lstinline{SBRK_AGER}, the system
+If the application specifies \lstinline{SBRK_EAGER}, the system
 call is implemented by the function
 \lstinline{growproc}
 \lineref{kernel/proc.c:/^growproc/}.
