@@ -1,0 +1,45 @@
+name: Build xv6 Book PDF
+
+on:
+  push:
+    branches: [main, master]
+  pull_request:
+    branches: [main, master]
+  workflow_dispatch:
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 1
+
+      - name: Install TeX Live (required packages)
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y \
+            texlive-latex-base \
+            texlive-latex-extra \
+            texlive-fonts-recommended \
+            texlive-science
+
+      - name: Pre-clone xv6-riscv (HTTPS to avoid SSH auth in CI)
+        run: |
+          git clone --depth 1 https://github.com/mit-pdos/xv6-riscv.git xv6-riscv-src
+
+      - name: Build the book
+        run: |
+          make 2>&1
+
+      - name: Upload PDF
+        uses: actions/upload-artifact@v4
+        with:
+          name: xv6-book
+          path: book.pdf
+          if-no-files-found: error
+
+      - name: Summary
+        run: |
+          ls -lh book.pdf
+          echo "✅ xv6 book compiled successfully"
