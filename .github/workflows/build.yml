@@ -29,10 +29,8 @@ jobs:
       - name: Build & install mpage (from source, not in Ubuntu 24.04 repos)
         run: |
           curl -sL https://www.mesa.nl/pub/mpage/mpage-2.5.8.tgz | tar xz
-          cd mpage-2.5.8
-          ./configure
-          make
-          sudo make install
+          make -C mpage-2.5.8 PAGESIZE=Letter
+          sudo make -C mpage-2.5.8 install PAGESIZE=Letter
 
       - name: Pre-clone xv6-riscv (HTTPS to avoid SSH auth in CI)
         run: |
