@@ -23,8 +23,16 @@ jobs:
             texlive-latex-extra \
             texlive-fonts-recommended \
             texlive-science \
-            mpage \
-            ghostscript
+            ghostscript \
+            build-essential
+
+      - name: Build & install mpage (from source, not in Ubuntu 24.04 repos)
+        run: |
+          curl -sL https://www.mesa.nl/pub/mpage/mpage-2.5.8.tgz | tar xz
+          cd mpage-2.5.8
+          ./configure
+          make
+          sudo make install
 
       - name: Pre-clone xv6-riscv (HTTPS to avoid SSH auth in CI)
         run: |
