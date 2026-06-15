@@ -1,4 +1,4 @@
-name: Build xv6 Book PDF
+name: Build & Release xv6 Book PDF
 
 on:
   push:
@@ -10,6 +10,8 @@ on:
 jobs:
   build:
     runs-on: ubuntu-latest
+    permissions:
+      contents: write  # 需要写权限来创建 Release
     steps:
       - uses: actions/checkout@v4
         with:
@@ -40,12 +42,30 @@ jobs:
         run: |
           make 2>&1
 
-      - name: Upload PDF
+      - name: Upload PDF as artifact (方便下载)
         uses: actions/upload-artifact@v4
         with:
           name: xv6-book
           path: book.pdf
           if-no-files-found: error
+
+      - name: Publish to Release (仅 push 到 main 时)
+        if: github.event_name == 'push' && github.ref_name == 'main'
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          # 生成版本标识
+          VERSION="build-$(date +%Y%m%d)-${GITHUB_SHA:0:7}"
+
+          # 删除旧的 latest release 和 tag（如果存在）
+          gh release delete latest --yes 2>/dev/null || true
+          git push --delete origin latest 2>/dev/null || true
+
+          # 创建新的 Release
+          gh release create latest \
+            --title "xv6 Book - ${VERSION}" \
+            --notes "自动构建于 $(date -u '+%Y-%m-%d %H:%M UTC')\nCommit: ${GITHUB_SHA}\n源码: mit-pdos/xv6-riscv (latest)" \
+            book.pdf
 
       - name: Summary
         run: |
